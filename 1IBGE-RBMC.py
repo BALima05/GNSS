@@ -7,7 +7,7 @@ import concurrent.futures
 from pathlib import Path
 
 # MAX_ZIP_SIZE foi removida, pois usaremos o RTKLIB diretamente
-
+# Adicionar uma forma de capturar os caminhos na máquina posteriormente!!
 crx_path = r"C:\Users\berna\Documents\Faculdade\Projeto PUB GNSS\CRX2RNX.exe"
 teqc_path = r"C:\Users\berna\Downloads\teqc_mingw_64\teqc.exe"
 

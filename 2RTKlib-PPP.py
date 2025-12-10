@@ -16,7 +16,7 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, config_file, rnx2rtkp_path
         arquivo_pos = pasta_saida / arquivo_obs.with_suffix('.pos').name
         
         # Encontra arquivos .sp3 (órbitas) e .clk (relógios) na pasta de produtos
-        # DICA: O RTKLIB é inteligente. Se você passar vários arquivos .sp3/.clk, 
+        # O RTKLIB é inteligente. Ao passar vários arquivos .sp3/.clk, 
         # ele usa apenas os que correspondem ao horário do arquivo .o.
         arquivos_sp3 = list(pasta_produtos.glob("*.sp3")) + list(pasta_produtos.glob("*.eph"))
         arquivos_clk = list(pasta_produtos.glob("*.clk"))
