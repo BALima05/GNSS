@@ -1,148 +1,163 @@
 import os
 import ftplib
 import datetime
-import gnsscal
+import re
 import gzip
 import shutil
 from pathlib import Path
-from tqdm import tqdm
 
-# Configurações do Servidor FTP do GFZ (Geralmente aberto/anônimo)
-FTP_HOST = "ftp.gfz-potsdam.de"
-FTP_BASE_PATH = "/GNSS/products"  # Caminho base dos produtos
+# =============================================================================
+# CONFIGURAÇÕES
+# =============================================================================
+SERVER_IGS = "igs.ign.fr"
+PATH_IGS = "/pub/igs/products"
 
-def descompactar_z_gz(caminho_arquivo):
-    """Descompacta arquivos .Z ou .gz para que o RTKLIB possa ler."""
-    caminho_arquivo = Path(caminho_arquivo)
-    # Remove a extensão de compressão para o nome final
-    caminho_final = caminho_arquivo.with_suffix('')
-    
-    print(f"   🔓 Descompactando: {caminho_arquivo.name}...")
-    
+def gps_date_converter(year, doy):
+    """Converte Ano e DOY para Semana GPS, Dia da Semana e Data completa."""
+    full_year = 2000 + int(year) if int(year) < 100 else int(year)
+    date_obj = datetime.datetime(full_year, 1, 1) + datetime.timedelta(days=int(doy) - 1)
+    gps_epoch = datetime.datetime(1980, 1, 6)
+    delta = date_obj - gps_epoch
+    gps_week = delta.days // 7
+    gps_dow = delta.days % 7
+    return gps_week, gps_dow, date_obj
+
+def extrair_info_arquivo(arquivo_path):
+    """Extrai Ano e DOY do nome do arquivo RINEX."""
     try:
-        # Tenta usar gzip (funciona para .gz e muitas vezes para .Z modernos)
-        with gzip.open(caminho_arquivo, 'rb') as f_in:
-            with open(caminho_final, 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
-        
-        # Remove o arquivo compactado original para economizar espaço
-        os.remove(caminho_arquivo)
-        return caminho_final
-    except Exception as e:
-        print(f"   ⚠️ Falha ao descompactar automaticamente (pode ser necessário 7zip): {e}")
-        return caminho_arquivo
-
-def baixar_arquivo_ftp(ftp, pasta_remota, nome_arquivo, pasta_local):
-    """Baixa um arquivo específico do FTP com barra de progresso."""
-    caminho_local = Path(pasta_local) / nome_arquivo
-    
-    try:
-        tamanho_arquivo = ftp.size(f"{pasta_remota}/{nome_arquivo}")
+        extensao = arquivo_path.suffix
+        ano = int(extensao[1:3])
+        nome = arquivo_path.stem
+        # Regex para pegar os 3 dígitos do dia antes do último caractere
+        match = re.search(r'(\d{3}).$', nome)
+        if match:
+            doy = int(match.group(1))
+            return ano, doy
+        return None, None
     except:
-        tamanho_arquivo = 0
+        return None, None
 
-    print(f"   ⬇️ Baixando: {nome_arquivo}")
+def decompress_gz(file_path):
+    """Descompacta arquivos .gz nativamente."""
+    new_path = file_path.with_suffix('') # Remove .gz
+    with gzip.open(file_path, 'rb') as f_in:
+        with open(new_path, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+    os.remove(file_path) # Remove o original compactado
+    print(f"📦 Descompactado: {new_path.name}")
+    return new_path
+
+def download_igs_smart(ftp, gps_week, gps_dow, date_obj, pasta_destino):
+    """
+    Tenta baixar arquivos usando o padrão NOVO (Longo) e cai para o ANTIGO (Curto) se falhar.
+    """
+    # Dados para montagem dos nomes
+    yyyy = date_obj.strftime("%Y")
+    ddd = date_obj.strftime("%j") # Dia do ano 001-366
     
-    with open(caminho_local, 'wb') as f:
-        with tqdm(total=tamanho_arquivo, unit='B', unit_scale=True, desc=nome_arquivo, leave=False) as pbar:
-            def callback(data):
-                f.write(data)
-                pbar.update(len(data))
+    # --- DEFINIÇÃO DOS NOMES DE ARQUIVO ---
+    # 1. Padrão NOVO (IGS0OPSFIN...) - Usado pós-2022
+    # Orbita: IGS0OPSFIN_YYYYDDD0000_01D_15M_ORB.SP3.gz
+    orb_long = f"IGS0OPSFIN_{yyyy}{ddd}0000_01D_15M_ORB.SP3.gz"
+    # Relógio: Tenta 30s (melhor) primeiro, depois 05m
+    clk_long_30s = f"IGS0OPSFIN_{yyyy}{ddd}0000_01D_30S_CLK.CLK.gz"
+    clk_long_05m = f"IGS0OPSFIN_{yyyy}{ddd}0000_01D_05M_CLK.CLK.gz"
+
+    # 2. Padrão ANTIGO (igsWWWD...) - Usado pré-2022
+    base_short = f"igs{gps_week}{gps_dow}"
+    orb_short = f"{base_short}.sp3.Z"
+    clk_short = f"{base_short}.clk.Z"
+
+    # Muda para a pasta da semana GPS
+    try:
+        ftp.cwd(f"{PATH_IGS}/{gps_week}")
+    except ftplib.error_perm:
+        print(f"❌ Erro: Pasta da semana {gps_week} não encontrada.")
+        return
+
+    # Função auxiliar de download
+    def try_download(filenames_priority_list):
+        for fname in filenames_priority_list:
+            local_path = pasta_destino / fname
+            final_path = pasta_destino / fname.replace('.gz', '').replace('.Z', '')
             
+            # Se já existe descompactado, pula
+            if final_path.exists():
+                print(f"🔹 Já existe: {final_path.name}")
+                return True
+            
+            print(f"⬇️ Tentando: {fname} ...")
             try:
-                ftp.retrbinary(f"RETR {pasta_remota}/{nome_arquivo}", callback)
-                return caminho_local
-            except ftplib.error_perm as e:
-                print(f"   ❌ Erro: Arquivo não encontrado no servidor: {e}")
-                f.close()
-                os.remove(caminho_local)
-                return None
+                with open(local_path, "wb") as f:
+                    ftp.retrbinary(f"RETR {fname}", f.write)
+                print(f"✅ Sucesso: {fname}")
+                
+                # Descompactar
+                if fname.endswith('.gz'):
+                    decompress_gz(local_path)
+                elif fname.endswith('.Z'):
+                    # Para .Z antigo, avisa usuário (ou use 7zip se tiver configurado, 
+                    # mas o foco aqui é 2024 que usa .gz)
+                    print(f"⚠️ Arquivo .Z baixado. Use 7-Zip para extrair: {fname}")
+                return True
+            except ftplib.error_perm:
+                if local_path.exists(): os.remove(local_path)
+                continue # Tenta o próximo da lista
+        return False
 
-def buscar_e_baixar_produtos(data_alvo, pasta_saida):
-    """
-    Lógica principal:
-    1. Converte Data -> Semana GPS
-    2. Conecta no FTP
-    3. Tenta achar arquivos SP3 e CLK (nomes curtos ou longos)
-    """
-    pasta_saida = Path(pasta_saida)
-    os.makedirs(pasta_saida, exist_ok=True)
+    # --- BAIXAR ORBITAS ---
+    if not try_download([orb_long, orb_short]):
+        print(f"❌ Falha ao baixar Órbitas para {date_obj.date()}")
 
-    # 1. Cálculos de Tempo
-    semana_gps, dia_semana = gnsscal.date2gpswd(data_alvo)
-    print(f"\n🌍 Processando Data: {data_alvo} | Semana GPS: {semana_gps} | Dia: {dia_semana}")
+    # --- BAIXAR RELÓGIOS ---
+    if not try_download([clk_long_30s, clk_long_05m, clk_short]):
+        print(f"❌ Falha ao baixar Relógios para {date_obj.date()}")
 
-    # 2. Conexão FTP
-    try:
-        ftp = ftplib.FTP(FTP_HOST)
-        ftp.login() # Login anônimo
-        print(f"   ✅ Conectado a {FTP_HOST}")
-    except Exception as e:
-        print(f"   ❌ Falha na conexão FTP: {e}")
-        return
-
-    # Caminho da semana: /GNSS/products/{semana}
-    pasta_remota = f"{FTP_BASE_PATH}/{semana_gps}"
-    
-    try:
-        ftp.cwd(pasta_remota)
-    except:
-        print(f"   ❌ Pasta da semana {semana_gps} não encontrada no servidor.")
-        ftp.quit()
-        return
-
-    # 3. Definir nomes de arquivos para procurar
-    # O RTKLIB gosta de nomes curtos: igsWWWD.sp3
-    # O Servidor pode ter nomes longos: IGS0OPSFIN...
-    
-    # Tentativa 1: Nomes Curtos (Padrão Antigo - Mais compatível com scripts simples)
-    arquivos_alvo = [
-        f"igs{semana_gps}{dia_semana}.sp3.Z",       # Órbita
-        f"igs{semana_gps}{dia_semana}.clk_30s.Z",   # Relógio 30s (Melhor)
-        f"igs{semana_gps}{dia_semana}.clk.Z"        # Relógio 5min (Fallback)
-    ]
-
-    # Listar arquivos na pasta para ver o que tem
-    arquivos_no_servidor = []
-    try:
-        arquivos_no_servidor = ftp.nlst()
-    except:
-        pass
-
-    for alvo in arquivos_alvo:
-        # Verifica se o arquivo curto existe direto
-        if alvo in arquivos_no_servidor:
-            arquivo_baixado = baixar_arquivo_ftp(ftp, pasta_remota, alvo, pasta_saida)
-            if arquivo_baixado:
-                descompactar_z_gz(arquivo_baixado)
-        else:
-            # Se não achou o curto, tenta achar o Longo equivalente
-            # Lógica simplificada: Procura algo que tenha o dia do ano ou semana
-            # (Isso é complexo de fazer perfeito, então focamos no .Z padrão que o GFZ mantém)
-            print(f"   ⚠️ Arquivo {alvo} não encontrado explicitamente.")
-
-    ftp.quit()
-    print("   ✅ Download da data finalizado.")
+    ftp.cwd("/") # Volta para raiz
 
 def main():
-    print("🛰️ DOWNLOADER DE PRODUTOS IGS (GFZ FTP)")
+    print("🌍 DOWNLOAD IGS V3 (Suporte a nomes Longos/2024+)")
     
-    pasta_destino = input("📂 Pasta para salvar os produtos (ex: C:\\GNSS\\PRODUTOS): ").strip().strip('"')
+    pasta_rinex = input("📂 Pasta onde estão os arquivos RINEX (.o): ").strip().strip('"')
+    pasta_rinex = Path(pasta_rinex)
     
-    # Modo de entrada: Data única ou Intervalo? Vamos fazer simples por enquanto.
-    data_str = input("🗓️ Data do levantamento (DD/MM/AAAA): ").strip()
+    if not pasta_rinex.exists():
+        print("❌ Pasta não encontrada.")
+        return
+
+    pasta_produtos = pasta_rinex.parent / "IGS_PRODUCTS"
+    os.makedirs(pasta_produtos, exist_ok=True)
     
+    arquivos_o = list(pasta_rinex.glob("*.*o"))
+    datas_processar = set()
+
+    print("\n🔎 Identificando datas...")
+    for arq in arquivos_o:
+        ano, doy = extrair_info_arquivo(arq)
+        if ano is not None:
+            wk, dw, dt = gps_date_converter(ano, doy)
+            datas_processar.add((wk, dw, dt))
+            print(f"   📅 {dt.date()} (Semana {wk}) <- {arq.name}")
+    
+    if not datas_processar:
+        print("❌ Nenhuma data válida encontrada.")
+        return
+
+    print("\n📡 Conectando ao FTP IGN...")
     try:
-        dia, mes, ano = map(int, data_str.split('/'))
-        data_alvo = datetime.date(ano, mes, dia)
+        ftp = ftplib.FTP(SERVER_IGS)
+        ftp.login()
         
-        buscar_e_baixar_produtos(data_alvo, pasta_destino)
-        
-        print(f"\n🎉 Arquivos prontos em: {pasta_destino}")
-        print("DICA: Aponte esta pasta no script de processamento PPP anterior.")
-        
-    except ValueError:
-        print("❌ Formato de data inválido.")
+        for wk, dw, dt in sorted(datas_processar):
+            print(f"\n--- Processando {dt.date()} (Semana {wk}) ---")
+            download_igs_smart(ftp, wk, dw, dt, pasta_produtos)
+            
+        ftp.quit()
+        print("\n🎉 Todos os downloads concluídos!")
+        print(f"📂 Arquivos salvos em: {pasta_produtos}")
+
+    except Exception as e:
+        print(f"❌ Erro crítico: {e}")
 
 if __name__ == "__main__":
     main()
