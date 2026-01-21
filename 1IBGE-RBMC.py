@@ -5,11 +5,55 @@ import subprocess
 import re
 import concurrent.futures
 from pathlib import Path
+import config
+import datetime
+
+# Descobrir Mês e Ano automaticamente pelo ZIP
+def descobrir_mes_ano_automatico(caminho_origem):
+    """
+    Analisa o ZIP ou Pasta de origem para encontrar o primeiro arquivo GNSS
+    válido (ex: sppa0010.24d) e determinar o Mês e Ano automaticamente.
+    """
+    caminho = Path(caminho_origem)
+    
+    # Padrão Regex: Procura por 3 digitos (DOY) + 0 + . + 2 digitos (ANO) + d/o
+    # Exemplo que casa: .24d, .24o, .23d.Z
+    padrao_data = re.compile(r"(\d{3})0\.(\d{2})[dDoO]")
+
+    arquivos_para_verificar = []
+
+    # Se for um arquivo ZIP, lista o conteúdo sem extrair
+    if caminho.is_file() and caminho.suffix.lower() == '.zip':
+        try:
+            with zipfile.ZipFile(caminho, 'r') as z:
+                arquivos_para_verificar = z.namelist()
+        except: pass
+    
+    # Se for uma pasta, lista os arquivos dentro
+    elif caminho.is_dir():
+        arquivos_para_verificar = [f.name for f in caminho.glob('*')]
+
+    # Procura a data no primeiro arquivo compatível encontrado
+    for nome in arquivos_para_verificar:
+        match = padrao_data.search(nome)
+        if match:
+            doy = int(match.group(1)) # Dia do ano (ex: 001)
+            ano_dois_digitos = int(match.group(2)) # Ano (ex: 24)
+            
+            # Converte para data real
+            ano_completo = 2000 + ano_dois_digitos
+            data_obj = datetime.datetime(ano_completo, 1, 1) + datetime.timedelta(days=doy - 1)
+            
+            # Formata como MMM_YY (ex: JAN_24)
+            mes_ano_detectado = data_obj.strftime("%b_%y").upper()
+            print(f"📅 Data detectada automaticamente: {mes_ano_detectado} (baseado em {nome})")
+            return mes_ano_detectado
+
+    # Fallback: Se não achar nada, usa a data atual ou um nome genérico
+    print("⚠️ Não foi possível detectar a data nos arquivos. Usando data atual.")
+    return datetime.datetime.now().strftime("%b_%y").upper()
 
 # MAX_ZIP_SIZE foi removida, pois usaremos o RTKLIB diretamente
-# Adicionar uma forma de capturar os caminhos na máquina posteriormente!! (pendente)
-crx_path = r"C:\Users\berna\Downloads\RNXCMP_4.2.0_Windows_mingw_64bit\RNXCMP_4.2.0_Windows_mingw_64bit\CRX2RNX.exe"
-teqc_path = r"C:\Users\berna\OneDrive\Documentos\GNSS\Programas\teqc.exe"
 
 # Função para imprimir a etapa atual do processamento
 def print_etapa(etapa):
@@ -151,13 +195,12 @@ def separar_teqc(pasta_d_path, pasta_saida_path, teqc_path):
 def main():
     print("🔧 PROCESSAMENTO GNSS - SCRIPT OTIMIZADO (PARA RTKLIB)")
     
-    origem_zip = input("📂 Caminho do .ZIP do IBGE ou pasta com zips: ").strip().strip('"')
-    pasta_base = input("📁 Caminho onde deseja salvar os dados processados: ").strip().strip('"')
-    mes_ano = input("🗓️ Informe o mês e ano (ex: NOV_22): ").strip().strip('"').upper()
+    origem_zip = config.IBGE_ZIP
+    mes_ano = descobrir_mes_ano_automatico(origem_zip)
 
     # Validação dos executáveis
-    CAMINHO_CRX2RNX = Path(crx_path)
-    CAMINHO_TEQC = Path(teqc_path)
+    CAMINHO_CRX2RNX = config.CRX2RNX_PATH
+    CAMINHO_TEQC = config.TEQC_PATH
     
     if not CAMINHO_CRX2RNX.is_file():
         print(f"❌ Erro: CRX2RNX.exe não encontrado em '{CAMINHO_CRX2RNX}'")
@@ -167,7 +210,7 @@ def main():
         return
 
     # Usa Pathlib para gerenciar pastas
-    pasta_final = Path(pasta_base) / mes_ano
+    pasta_final = config.PASTA_BASE / mes_ano
     os.makedirs(pasta_final, exist_ok=True)
 
     pasta_d   = pasta_final / "1 - Dados tipos .d"
