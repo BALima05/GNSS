@@ -4,28 +4,28 @@ from pathlib import Path
 import concurrent.futures
 
 def processar_ppp_rtklib(arquivo_obs, pasta_produtos, config_file, rnx2rtkp_path, pasta_saida):
-    """
-    Executa o rnx2rtkp (RTKLIB) em modo PPP para um arquivo de observação.
-    """
     try:
         arquivo_obs = Path(arquivo_obs)
         pasta_produtos = Path(pasta_produtos)
         pasta_saida = Path(pasta_saida)
         
-        # Define o nome do arquivo de saída (.pos)
+        # Nome do arquivo de saída
         arquivo_pos = pasta_saida / arquivo_obs.with_suffix('.pos').name
         
-        # Encontra arquivos .sp3 (órbitas) e .clk (relógios) na pasta de produtos
-        # O RTKLIB é inteligente. Ao passar vários arquivos .sp3/.clk, 
-        # ele usa apenas os que correspondem ao horário do arquivo .o.
+        # --- CORREÇÃO 1: Buscar também arquivos de Navegação (.n, .p, .nav) ---
+        # Tenta achar arquivos de navegação na pasta de produtos OU na pasta do arquivo .o
+        nav_files = list(pasta_produtos.glob("*.[0-9][0-9]n")) + \
+                    list(pasta_produtos.glob("*.[0-9][0-9]p")) + \
+                    list(pasta_produtos.glob("*.nav")) + \
+                    list(arquivo_obs.parent.glob(f"*{arquivo_obs.suffix[-3:-1]}n")) # Ex: procura .24n se o obs for .24o
+
         arquivos_sp3 = list(pasta_produtos.glob("*.sp3")) + list(pasta_produtos.glob("*.eph"))
         arquivos_clk = list(pasta_produtos.glob("*.clk"))
         
-        if not arquivos_sp3 or not arquivos_clk:
-            return f"⚠️ Pulei {arquivo_obs.name}: Faltam arquivos .sp3 ou .clk na pasta de produtos."
-
-        # Monta o comando do RTKLIB
-        # rnx2rtkp -k config.conf -o saida.pos obs.o orbita.sp3 relogio.clk
+        if not arquivos_sp3:
+            return f"⚠️ Pulei {arquivo_obs.name}: Faltam arquivos .sp3 (Orbitas)."
+            
+        # Monta o comando
         cmd = [
             str(rnx2rtkp_path),
             '-k', str(config_file),
@@ -33,17 +33,22 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, config_file, rnx2rtkp_path
             str(arquivo_obs)
         ]
         
-        # Adiciona todos os arquivos de produto ao comando
+        # Adiciona produtos e navegação ao comando
         cmd.extend([str(p) for p in arquivos_sp3])
         cmd.extend([str(p) for p in arquivos_clk])
+        cmd.extend([str(p) for p in nav_files]) # Adiciona navegação
 
-        # Executa o comando (sem shell=True para segurança e melhor manuseio de lista)
+        # Executa capturando TUDO
         result = subprocess.run(cmd, capture_output=True, text=True)
 
-        if result.returncode == 0:
-            return f"✅ PPP Sucesso: {arquivo_pos.name}"
+        # --- CORREÇÃO 2: Verificar se o arquivo EXISTE e tem CONTEÚDO ---
+        if arquivo_pos.exists() and arquivo_pos.stat().st_size > 0:
+            return f"✅ PPP Sucesso: {arquivo_pos.name} (Tamanho: {arquivo_pos.stat().st_size/1024:.1f} KB)"
         else:
-            return f"❌ Erro no RTKLIB para {arquivo_obs.name}:\n{result.stderr}"
+            # Se o arquivo não foi criado, mostra o erro que o RTKLIB cuspiu
+            return (f"❌ Falha {arquivo_obs.name} (Arquivo vazio ou não criado).\n"
+                    f"   Log RTKLIB: {result.stderr}\n"
+                    f"   Output: {result.stdout}")
 
     except Exception as e:
         return f"💥 Erro de execução: {e}"
@@ -53,7 +58,7 @@ def main():
     
     # --- CONFIGURAÇÕES ---
     # Caminho para o executável rnx2rtkp.exe
-    path_rnx2rtkp = input("Caminho do rnx2rtkp.exe: ").strip().strip('"')
+    path_rnx2rtkp = r"C:\Users\berna\Downloads\RTKLIB_EX_2.5.0\RTKLIB_EX_2.5.0\rnx2rtkp.exe"
     
     # Pasta onde estão seus arquivos RINEX .o (gerados no script anterior)
     path_rinex_obs = input("Pasta com arquivos RINEX (.o): ").strip().strip('"')
@@ -62,7 +67,7 @@ def main():
     path_produtos = input("Pasta com produtos IGS (.sp3/.clk): ").strip().strip('"')
     
     # Arquivo de configuração .conf
-    path_config = input("Caminho do arquivo ppp_static.conf: ").strip().strip('"')
+    path_config = r"C:\Users\berna\OneDrive\Documentos\PUB IC\GNSS\ppp-static.conf"
     
     # Pasta para salvar os resultados
     path_saida = os.path.join(os.path.dirname(path_rinex_obs), "RESULTADOS_PPP")
@@ -70,7 +75,7 @@ def main():
     
     # --- PROCESSAMENTO ---
     path_rinex_obs = Path(path_rinex_obs)
-    arquivos_o = list(path_rinex_obs.glob("*.o")) # ou *.XXo se não tiver renomeado
+    arquivos_o = list(path_rinex_obs.glob("*.[0-9][0-9]o"))
     
     if not arquivos_o:
         print("Nenhum arquivo de observação encontrado.")
