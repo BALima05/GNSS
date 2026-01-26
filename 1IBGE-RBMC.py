@@ -7,50 +7,82 @@ import concurrent.futures
 from pathlib import Path
 import config
 import datetime
+import io
 
 # Descobrir Mês e Ano automaticamente pelo ZIP
 def descobrir_mes_ano_automatico(caminho_origem):
     """
-    Analisa o ZIP ou Pasta de origem para encontrar o primeiro arquivo GNSS
-    válido (ex: sppa0010.24d) e determinar o Mês e Ano automaticamente.
+    Analisa ZIP/Pasta (e Zips aninhados) para encontrar o primeiro arquivo GNSS
+    válido e determinar o Mês e Ano.
     """
     caminho = Path(caminho_origem)
-    
-    # Padrão Regex: Procura por 3 digitos (DOY) + 0 + . + 2 digitos (ANO) + d/o
-    # Exemplo que casa: .24d, .24o, .23d.Z
-    padrao_data = re.compile(r"(\d{3})0\.(\d{2})[dDoO]")
+    print(f"\n🕵️ MODO RAIO-X: Analisando data em {caminho.name}...")
 
-    arquivos_para_verificar = []
+    # Regex: (Dia)(Sessão).(Ano)(Tipo) -> ex: 0010.24d, 001a.24o
+    padrao_data = re.compile(r"(\d{3})[0-9a-zA-Z]\.(\d{2})[dDoO]")
 
-    # Se for um arquivo ZIP, lista o conteúdo sem extrair
-    if caminho.is_file() and caminho.suffix.lower() == '.zip':
-        try:
-            with zipfile.ZipFile(caminho, 'r') as z:
-                arquivos_para_verificar = z.namelist()
-        except: pass
-    
-    # Se for uma pasta, lista os arquivos dentro
-    elif caminho.is_dir():
-        arquivos_para_verificar = [f.name for f in caminho.glob('*')]
+    def tentar_extrair_data(lista_nomes):
+        """Helper para verificar uma lista de nomes de arquivos"""
+        for nome in lista_nomes:
+            nome_limpo = Path(nome).name
+            match = padrao_data.search(nome_limpo)
+            if match:
+                doy = int(match.group(1))
+                ano = int(match.group(2))
+                ano_completo = 2000 + ano
+                data_obj = datetime.datetime(ano_completo, 1, 1) + datetime.timedelta(days=doy - 1)
+                return data_obj.strftime("%b_%y").upper(), nome_limpo
+        return None, None
 
-    # Procura a data no primeiro arquivo compatível encontrado
-    for nome in arquivos_para_verificar:
-        match = padrao_data.search(nome)
-        if match:
-            doy = int(match.group(1)) # Dia do ano (ex: 001)
-            ano_dois_digitos = int(match.group(2)) # Ano (ex: 24)
-            
-            # Converte para data real
-            ano_completo = 2000 + ano_dois_digitos
-            data_obj = datetime.datetime(ano_completo, 1, 1) + datetime.timedelta(days=doy - 1)
-            
-            # Formata como MMM_YY (ex: JAN_24)
-            mes_ano_detectado = data_obj.strftime("%b_%y").upper()
-            print(f"📅 Data detectada automaticamente: {mes_ano_detectado} (baseado em {nome})")
-            return mes_ano_detectado
+    try:
+        # CASO 1: A origem é um ARQUIVO .ZIP
+        if caminho.is_file() and caminho.suffix.lower() == '.zip':
+            with zipfile.ZipFile(caminho, 'r') as z_main:
+                # 1. Tenta achar na raiz do ZIP principal
+                res, arq = tentar_extrair_data(z_main.namelist())
+                if res:
+                    print(f"✅ Data encontrada no Nível 1: {res} (Arquivo: {arq})")
+                    return res
+                
+                # 2. Se não achou, procura dentro dos ZIPS internos (Nível 2)
+                print("   ↳ Nível 1 sem arquivos de dados. Olhando dentro dos Zips internos...")
+                for item in z_main.namelist():
+                    if item.lower().endswith('.zip'):
+                        try:
+                            # Abre o zip interno na memória (sem extrair pro disco)
+                            with z_main.open(item) as zip_bytes:
+                                with zipfile.ZipFile(zip_bytes) as z_nested:
+                                    res_n, arq_n = tentar_extrair_data(z_nested.namelist())
+                                    if res_n:
+                                        print(f"✅ Data encontrada no Nível 2 ({item}): {res_n} (Arquivo: {arq_n})")
+                                        return res_n
+                        except:
+                            continue # Se um zip interno der erro, pula pro próximo
 
-    # Fallback: Se não achar nada, usa a data atual ou um nome genérico
-    print("⚠️ Não foi possível detectar a data nos arquivos. Usando data atual.")
+        # CASO 2: A origem é uma PASTA
+        elif caminho.is_dir():
+            # 1. Tenta achar arquivos soltos na pasta
+            arquivos_pasta = [f.name for f in caminho.glob('*')]
+            res, arq = tentar_extrair_data(arquivos_pasta)
+            if res: return res
+
+            # 2. Tenta olhar dentro dos Zips que estão na pasta
+            zips_na_pasta = list(caminho.glob('*.zip'))
+            print(f"   ↳ Verificando {len(zips_na_pasta)} zips dentro da pasta...")
+            for zip_path in zips_na_pasta:
+                try:
+                    with zipfile.ZipFile(zip_path, 'r') as z:
+                        res, arq = tentar_extrair_data(z.namelist())
+                        if res:
+                            print(f"✅ Data encontrada dentro de {zip_path.name}: {res}")
+                            return res
+                except: continue
+
+    except Exception as e:
+        print(f"❌ Erro ao ler estrutura de arquivos: {e}")
+
+    print("\n⚠️ AVISO: Não foi possível determinar a data automaticamente.")
+    print("   -> Usando data atual como fallback.")
     return datetime.datetime.now().strftime("%b_%y").upper()
 
 # MAX_ZIP_SIZE foi removida, pois usaremos o RTKLIB diretamente
@@ -59,62 +91,70 @@ def descobrir_mes_ano_automatico(caminho_origem):
 def print_etapa(etapa):
     print(f"\n{'='*40}\n[ETAPA] {etapa}\n{'='*40}")
 
-def descompactar_zip(origem_path, pasta_destino_d_path):
+def descompactar_zip(origem_path, pasta_destino_d_path, pasta_destino_nav_path):
     """
-    Descompacta arquivos ZIP de origem.
-    Procura por zips aninhados, extrai tudo e move apenas os arquivos .d
-    para a pasta de destino final.
+    Descompacta arquivos ZIP e separa:
+    - .d -> pasta_destino_d
+    - .n, .g, .p -> pasta_destino_nav
     """
-    origem_path = Path(origem_path)
-    pasta_destino_d_path = Path(pasta_destino_d_path)
+    origem_path = Path(origem_path) # Pasta de origem
+    pasta_destino_d_path = Path(pasta_destino_d_path) # Pasta destino para arquivos .d
+    pasta_destino_nav_path = Path(pasta_destino_nav_path) # Pasta destino para arquivos .nav
     
     # Cria diretórios temporários na pasta base
     temp_raiz = pasta_destino_d_path.parent / "TEMP_ZIPS"
     temp_extraidos = pasta_destino_d_path.parent / "TEMP_EXTRAIDOS"
     
+    # Cria os diretórios temporários
     os.makedirs(temp_raiz, exist_ok=True)
     os.makedirs(temp_extraidos, exist_ok=True)
     os.makedirs(pasta_destino_d_path, exist_ok=True)
+    os.makedirs(pasta_destino_nav_path, exist_ok=True)
 
     try:
+        print(">> Copiando arquivos ZIP para pasta temporária...")
         if origem_path.is_file() and origem_path.suffix.lower() == ".zip":
-            print(f"🗃️ Extraindo pacote principal ZIP: {origem_path.name}")
-            with zipfile.ZipFile(origem_path, 'r') as zip_ref:
-                zip_ref.extractall(temp_raiz)
+            with zipfile.ZipFile(origem_path, 'r') as z:
+                z.extractall(temp_raiz)
         elif origem_path.is_dir():
-            print(f"📂 Copiando arquivos ZIP da pasta: {origem_path}")
-            for arquivo in os.listdir(origem_path):
-                if arquivo.lower().endswith('.zip'):
-                    shutil.copy(origem_path / arquivo, temp_raiz / arquivo)
-        else:
-            print(f"❌ Erro: Caminho de origem não é um arquivo .zip ou diretório válido.")
-            return
-
-        # Extrai os zips individuais (que podem conter os arquivos .d)
-        for arquivo_zip in temp_raiz.glob('*.zip'):
-            print(f" extracting... {arquivo_zip.name}")
-            try:
-                with zipfile.ZipFile(arquivo_zip, 'r') as zip_ref:
-                    zip_ref.extractall(temp_extraidos)
-                print(f"✅ Descompactado: {arquivo_zip.name}")
-            except zipfile.BadZipFile:
-                print(f"❌ ZIP inválido: {arquivo_zip.name}")
+            for f in origem_path.glob("*.zip"):
+                shutil.copy(f, temp_raiz / f.name)
         
-        # Procura recursivamente por arquivos .d e move
-        regex_d = re.compile(r".*\.\d{2}d$", re.IGNORECASE)
-        for raiz, _, arquivos in os.walk(temp_extraidos):
+        print(">> Extraindo zips internos...")
+        zips_internos = list(temp_raiz.glob('*.zip'))
+        for arq_zip in zips_internos:
+            try:
+                with zipfile.ZipFile(arq_zip, 'r') as z:
+                    z.extractall(temp_extraidos)
+            except zipfile.BadZipFile:
+                print(f"⚠️ Aviso: Zip corrompido: {arq_zip.name}")
+
+        print(">> Organizando arquivos (.d e navegação)...")
+        count_d = 0
+        count_n = 0
+        
+        for raiz, dirs, arquivos in os.walk(temp_extraidos):
             for arquivo in arquivos:
-                if arquivo.lower().endswith('.d') or regex_d.match(arquivo):
-                    origem = Path(raiz) / arquivo
-                    destino = pasta_destino_d_path / arquivo
-                    shutil.move(origem, destino)
-                    print(f"📁 Movido: {arquivo} -> {pasta_destino_d_path.name}")
-    
+                caminho_origem = Path(raiz) / arquivo
+                
+                # ####### LÓGICA DE SEPARAÇÃO #######
+                
+                # 1. Arquivos Hatanaka (.YYd)
+                if re.search(r"\.\d{2}d$", arquivo, re.IGNORECASE):
+                    shutil.move(caminho_origem, pasta_destino_d_path / arquivo)
+                    count_d += 1
+                    
+                # 2. Arquivos de Navegação (.YYn = GPS, .YYg = GLONASS, .YYp = Misto)
+                elif re.search(r"\.\d{2}[ngp]$", arquivo, re.IGNORECASE):
+                    shutil.move(caminho_origem, pasta_destino_nav_path / arquivo)
+                    count_n += 1
+
+        print(f"✅ Extração concluída: {count_d} arquivos .d e {count_n} arquivos de navegação.")
+
     finally:
-        # Limpa os diretórios temporários
-        shutil.rmtree(temp_raiz, ignore_errors=True)
-        shutil.rmtree(temp_extraidos, ignore_errors=True)
-        print("🧹 Limpeza temporária concluída.")
+        # Limpeza
+        if temp_raiz.exists(): shutil.rmtree(temp_raiz)
+        if temp_extraidos.exists(): shutil.rmtree(temp_extraidos)
 
 def _processar_crx(arquivo_d_path, crx2rnx_path):
     """Função auxiliar para paralelismo do CRX2RNX."""
@@ -199,8 +239,8 @@ def main():
     mes_ano = descobrir_mes_ano_automatico(origem_zip)
 
     # Validação dos executáveis
-    CAMINHO_CRX2RNX = config.CRX2RNX_PATH
-    CAMINHO_TEQC = config.TEQC_PATH
+    CAMINHO_CRX2RNX = Path(config.CRX2RNX_PATH)
+    CAMINHO_TEQC = Path(config.TEQC_PATH)
     
     if not CAMINHO_CRX2RNX.is_file():
         print(f"❌ Erro: CRX2RNX.exe não encontrado em '{CAMINHO_CRX2RNX}'")
@@ -210,15 +250,16 @@ def main():
         return
 
     # Usa Pathlib para gerenciar pastas
-    pasta_final = config.PASTA_BASE / mes_ano
+    pasta_final = Path(config.PASTA_BASE) / mes_ano
     os.makedirs(pasta_final, exist_ok=True)
 
     pasta_d   = pasta_final / "1 - Dados tipos .d"
+    pasta_nav = pasta_final / "1.1 - Navegacao Broadcast"
     pasta_sep = pasta_final / "2 - Dados separados por satélite (Prontos para RTKLIB)"
     # --- pasta_zip FOI REMOVIDA ---
 
     print_etapa("1/3 - Descompactando e separando arquivos .d")
-    descompactar_zip(origem_zip, pasta_d)
+    descompactar_zip(origem_zip, pasta_d, pasta_nav)
 
     print_etapa("2/3 - Convertendo Hatanaka (.d) p/ RINEX (.o) [EM PARALELO]")
     converter_crx2rnx(pasta_d, CAMINHO_CRX2RNX)
