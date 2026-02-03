@@ -5,6 +5,7 @@ import re
 import gzip
 import shutil
 from pathlib import Path
+import utils
 
 # =============================================================================
 # CONFIGURAÇÕES
@@ -118,7 +119,7 @@ def download_igs_smart(ftp, gps_week, gps_dow, date_obj, pasta_destino):
 def main():
     print("🌍 DOWNLOAD IGS V3 (Suporte a nomes Longos/2024+)")
     
-    pasta_rinex = input("📂 Pasta onde estão os arquivos RINEX (.o): ").strip().strip('"')
+    pasta_rinex = utils.carregar_estado("pasta_rinex_pronta")
     pasta_rinex = Path(pasta_rinex)
     
     if not pasta_rinex.exists():
