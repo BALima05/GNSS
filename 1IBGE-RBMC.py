@@ -8,6 +8,7 @@ from pathlib import Path
 import config
 import datetime
 import io
+import utils
 
 # Descobrir Mês e Ano automaticamente pelo ZIP
 def descobrir_mes_ano_automatico(caminho_origem):
@@ -249,14 +250,14 @@ def main():
         print(f"❌ Erro: teqc.exe não encontrado em '{CAMINHO_TEQC}'")
         return
 
-    # Usa Pathlib para gerenciar pastas
+    # usa Pathlib para gerenciar pastas
     pasta_final = Path(config.PASTA_BASE) / mes_ano
     os.makedirs(pasta_final, exist_ok=True)
 
     pasta_d   = pasta_final / "1 - Dados tipos .d"
     pasta_nav = pasta_final / "1.1 - Navegacao Broadcast"
     pasta_sep = pasta_final / "2 - Dados separados por satélite (Prontos para RTKLIB)"
-    # --- pasta_zip FOI REMOVIDA ---
+    # pasta_zip FOI REMOVIDA
 
     print_etapa("1/3 - Descompactando e separando arquivos .d")
     descompactar_zip(origem_zip, pasta_d, pasta_nav)
@@ -270,6 +271,10 @@ def main():
     print_etapa("🎉 FINALIZAÇÃO")
     print(f"Processamento concluído! Seus arquivos RINEX estão prontos para o RTKLIB em:")
     print(f"{pasta_sep}")
+
+    # Salva o caminho das pastas para o proximo script
+    utils.salvar_estado("pasta_rinex_pronta", pasta_sep)
+    utils.salvar_estado("mes_ano", mes_ano)
 
 if __name__ == "__main__":
     main()
