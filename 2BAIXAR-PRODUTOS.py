@@ -8,6 +8,7 @@ from pathlib import Path
 import utils
 import config
 import subprocess
+import fnmatch
 
 # =============================================================================
 # CONFIGURAÇÕES
@@ -62,6 +63,41 @@ def descompactar_z_7zip(arquivo_z, pasta_destino):
         return True
     except:
         return False
+    
+def encontrar_melhor_arquivo(lista_arquivos_server, ano, doy, tipo):
+    """
+    Procura na lista do servidor o melhor arquivo para a data,
+    suportando Nomes Curtos (Antigo) e Nomes Longos (Novo).
+    tipo: 'sp3' ou 'clk'
+    """
+    ano_str = str(ano)
+    doy_str = f"{int(doy):03d}" # Ex: 004
+    
+    candidatos = []
+
+    # Padrão 1: Nome Longo (Prioridade IGS Moderno)
+    # Ex: IGS0OPSFIN_20240040000_01D_15M_ORB.SP3.gz
+    # Busca por *YYYYDDD*ORB.SP3*
+    if tipo == 'sp3':
+        padrao_longo = f"*_{ano_str}{doy_str}*ORB.SP3*" 
+    else: # clk
+        padrao_longo = f"*_{ano_str}{doy_str}*CLK.CLK*"
+
+    # Padrão 2: Nome Curto (Legado)
+    # Ex: igsWWWD.sp3.Z (Isso é difícil de montar aqui sem a semana, 
+    # então vamos confiar na busca por substring se o Longo falhar)
+    
+    for f in lista_arquivos_server:
+        if fnmatch.fnmatch(f, padrao_longo):
+            candidatos.append(f)
+    
+    # Se achou nomes longos, tenta pegar o "FIN" (Final) em vez do "RAP" (Rapid)
+    if candidatos:
+        finais = [c for c in candidatos if "FIN" in c]
+        if finais: return finais[0] # Retorna o primeiro Final encontrado
+        return candidatos[0] # Se não tiver Final, vai o Rapid mesmo
+    
+    return None
 
 def main():
     print("🌍 DOWNLOAD IGS V3 (Suporte a nomes Longos/2024+)")
@@ -109,7 +145,8 @@ def main():
         ano, doy = extrair_info_arquivo(arq)
         if ano is not None:
             wk, dw, dt = gps_date_converter(ano, doy)
-            datas_processar.add((wk, dw, dt))
+            full_year = dt.year
+            datas_processar.add((wk, dw, dt, full_year, doy))
             print(f"   📅 {dt.date()} (Semana {wk}) <- {arq.name}")
     
     if not datas_processar:
@@ -125,8 +162,11 @@ def main():
         ftp.login()
         # Ativa modo passivo para evitar bloqueios de firewall
         ftp.set_pasv(True)
+        print("✅ Conexão estabelecida.")
+
+        lista_ordenada = sorted(list(datas_processar), key=lambda x: x[2]) # Ordena por semana
         
-        for wk, dw, dt in sorted(datas_processar):
+        for wk, dw, dt, full_year, doy in lista_ordenada:
             print(f"   ⬇️ Processando dia: {dt.date()} (Week {wk})")
             pasta_remota = f"{PATH_IGS}/{wk}"
             
@@ -142,56 +182,63 @@ def main():
 
             try:
                 ftp.cwd(pasta_remota)
+                arquivos_no_server = ftp.nlst()
+                
+                # Procura Arquivos (SP3 e CLK)
+                alvos_encontrados = []
 
                 # Agrupa alvos por tipo (SP3 ou CLK) para não baixar repetido
                 sp3_baixado = False
                 clk_baixado = False
 
-                for alvo in alvos:
-                    is_sp3 = "sp3" in alvo
-                    is_clk = "clk" in alvo
+                # 1. Busca SP3 (Efemerides)
+                arquivo_sp3 = encontrar_melhor_arquivo(arquivos_no_server, full_year, doy, 'sp3')
+                if arquivo_sp3:
+                    alvos_encontrados.append(arquivo_sp3)
+                else:
+                    # Tenta fallback nome curto
+                    curto = f"igs{wk}{dw}.sp3.Z"
+                    if curto in arquivos_no_server: alvos_encontrados.append(curto)
+                    else: print(f"   ⚠️ SP3 não encontrado para {dt.date()}")
 
-                    # Se já baixamos um SP3 para esse dia, pula os outros SP3
-                    if is_sp3 and sp3_baixado: continue
-                    if is_clk and clk_baixado: continue
+                # 2. Busca CLK (Relógios)
+                arquivo_clk = encontrar_melhor_arquivo(arquivos_no_server, full_year, doy, 'clk')
+                if arquivo_clk:
+                    alvos_encontrados.append(arquivo_clk)
+                else:
+                    # Tenta fallback nome curto
+                    curto_clk = f"igs{wk}{dw}.clk.Z" # ou clk_30s.Z
+                    if curto_clk in arquivos_no_server: alvos_encontrados.append(curto_clk)
 
-                    local_file = pasta_produtos / alvo
-                    final_path = pasta_produtos / alvo.replace('.Z', '').replace('.gz', '')
+                # --- DOWNLOAD ---
+                for arquivo_remoto in alvos_encontrados:
+                    local_file = pasta_produtos / arquivo_remoto
                     
-                    # Se o arquivo final DESCOMPACTADO já existe, pula
+                    # Nome final esperado após descompactar (remove .gz ou .Z)
+                    nome_limpo = arquivo_remoto.replace('.gz', '').replace('.Z', '')
+                    final_path = pasta_produtos / nome_limpo
+
                     if final_path.exists() and final_path.stat().st_size > 0:
-                        print(f"      ⏩ Já existe: {final_path.name}")
-                        if is_sp3: sp3_baixado = True
-                        if is_clk: clk_baixado = True
+                        print(f"   ⏩ Já existe: {nome_limpo}")
                         continue
-                    
-                    # Tenta baixar
-                    sucesso = False
+
+                    print(f"   ⬇️  Baixando: {arquivo_remoto} ... ", end="")
                     try:
                         with open(local_file, 'wb') as f:
-                            ftp.retrbinary(f'RETR {alvo}', f.write)
-                        
-                        # Verifica se baixou algo válido (> 0 bytes)
-                        if local_file.stat().st_size > 0:
-                            print(f"      ✅ Baixado: {alvo}")
-                            sucesso = True
-                            if is_sp3: sp3_baixado = True
-                            if is_clk: clk_baixado = True
-                        else:
-                            # Remove arquivo vazio
-                            os.remove(local_file)
-                    except:
+                            ftp.retrbinary(f'RETR {arquivo_remoto}', f.write)
+                        print("OK!")
+                    except Exception as e:
+                        print(f"ERRO: {e}")
                         if local_file.exists(): os.remove(local_file)
-            except ftplib.error_perm as e:
-                print(f"      ⚠️ Pasta {pasta_remota} não encontrada no servidor")
-            except Exception as e:
-                print(f"      ❌ Erro pasta remota {pasta_remota}: {e}")
-        
+
+            except ftplib.error_perm:
+                print(f"❌ Pasta remota {pasta_remota} não encontrada.")
+
         ftp.quit()
         print("\n✅ Download concluído.")
 
     except Exception as e:
-        print(f"❌ Erro crítico: {e}")
+        print(f"❌ Erro FTP: {e}")
         return
 
     # -- Descompactação -- 
