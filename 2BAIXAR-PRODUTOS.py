@@ -85,7 +85,7 @@ def encontrar_melhor_arquivo(lista_arquivos_server, ano, doy, tipo):
 
     # Padrão 2: Nome Curto (Legado)
     # Ex: igsWWWD.sp3.Z (Isso é difícil de montar aqui sem a semana, 
-    # então vamos confiar na busca por substring se o Longo falhar)
+    # então confia-se na busca por substring se o longo falhar)
     
     for f in lista_arquivos_server:
         if fnmatch.fnmatch(f, padrao_longo):
