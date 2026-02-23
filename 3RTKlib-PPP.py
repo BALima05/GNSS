@@ -15,8 +15,7 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
         # Nome do arquivo de saída
         arquivo_pos = pasta_saida / arquivo_obs.with_suffix('.pos').name
         
-        # --- CORREÇÃO 1: Buscar também arquivos de Navegação (.n, .p, .nav) ---
-        # Tenta achar arquivos de navegação na pasta de produtos OU na pasta do arquivo .o
+        # Obtenção dos arquivos nav e produtos
         nav_files = list(pasta_nav.glob("*.[0-9][0-9]n")) + \
                     list(pasta_nav.glob("*.[0-9][0-9]p")) + \
                     list(pasta_nav.glob("*.[0-9][0-9]g")) + \
@@ -42,17 +41,17 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
         
         # Adiciona produtos e navegação ao comando
 
+        for nav in nav_files:      # OBRIGATÓRIO PASSAR NAV PRIMEIRO
+            cmd.append(str(nav))
         for sp3 in arquivos_sp3:
             cmd.append(str(sp3))
         for clk in arquivos_clk:
             cmd.append(str(clk))
-        for nav in nav_files:
-            cmd.append(str(nav))
 
         # Executa capturando TUDO
         result = subprocess.run(cmd, capture_output=True, text=True)
 
-        # --- CORREÇÃO 2: Verificar se o arquivo EXISTE e tem CONTEÚDO ---
+        # --- Verificar se o arquivo EXISTE e tem CONTEÚDO ---
         if arquivo_pos.exists() and arquivo_pos.stat().st_size > 0:
             return f"✅ PPP Sucesso: {arquivo_pos.name} (Tamanho: {arquivo_pos.stat().st_size/1024:.1f} KB)"
         else:
@@ -74,10 +73,10 @@ def main():
         print(f"❌ Executável não encontrado: {path_rnx2rtkp}")
         return
     
-    # Pasta onde estão seus arquivos RINEX .o (gerados no script anterior)
+    # Pasta onde estão os arquivos RINEX .o (gerados no script anterior)
     path_rinex_obs = utils.carregar_estado("pasta_rinex_pronta")
     
-    # Pasta onde você salvou os arquivos .sp3 e .clk baixados do IGS
+    # Pasta onde salvou os arquivos .sp3 e .clk baixados do IGS
     path_produtos = utils.carregar_estado("pasta_produtos")
 
     # Pasta onde estão os dados de navegação
