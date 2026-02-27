@@ -17,9 +17,14 @@ Os dados são coletados pelo serviço RBMC do IBGE, e processados através da fe
 ## IBGE-RBMC
 
 ### :satellite: Serviço RBMC
+
 A primeira etapa para o processamento dos dados é a obtenção deles, que é feita diretamente através da ferramenta disponibilizada pelo IBGE, o [RBMC - Rede Brasileira de Monitoramento Contínuo dos Sistemas GNSS](https://www.ibge.gov.br/geociencias/informacoes-sobre-posicionamento-geodesico/rede-geodesica/16258-rede-brasileira-de-monitoramento-continuo-dos-sistemas-gnss-rbmc.html?=&t=dados-diarios-e-situacao-operacional), da qual é possível obter os dados de GNSS em qualquer intervalo de tempo para as estações brasileiras. 
 
-A obtenção destes dados ... (em progresso - automatização)
+A obtenção destes dados ... (em progresso - automação)
+
+Todos os dados são disponibilizados em arquivos .d (dados de observação - comprimidos em Hatanaka), .g (arquivos de navegação do GLONASS), .n (arquivos de navegação do GPS), .l (logs, dados brutos de observação).
+
+Esses dados têm que ser separados conforme suas funções, sendo os principais os dados de observação, os quais contém as informações de geolocalização a serem processados para análise. Os dados de navegação, necessários para o processamento pelo RTKlib, são separados em outra pasta para fácil acesso posteriormente.
 
 ### :file_folder: Conversão Hatanaka -> RINEX
 
