@@ -4,6 +4,18 @@ from pathlib import Path
 import concurrent.futures
 import config
 import utils
+import re
+import datetime
+
+def gps_date_converter(year, doy):
+    """Converte o ano e DOY para a semana GPS (usada nos produtos IGS)."""
+    full_year = 2000 + int(year) if int(year) < 100 else int(year)
+    date_obj = datetime.datetime(full_year, 1, 1) + datetime.timedelta(days=int(doy) - 1)
+    gps_epoch = datetime.datetime(1980, 1, 6)
+    delta = date_obj - gps_epoch
+    gps_week = delta.days // 7
+    gps_dow = delta.days % 7
+    return gps_week, gps_dow, full_year, int(doy)
 
 def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rnx2rtkp_path, pasta_saida):
     try:
@@ -20,10 +32,26 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
                     list(pasta_nav.glob("*.[0-9][0-9]p")) + \
                     list(pasta_nav.glob("*.[0-9][0-9]g")) + \
                     list(pasta_nav.glob("*.nav"))
-
+        
         arquivos_sp3 = list(pasta_produtos.glob("*.[sS][pP]3")) + list(pasta_produtos.glob("*.eph"))
         arquivos_clk = list(pasta_produtos.glob("*.[cC][lL][kK]"))
-        
+
+        match = re.search(r'(\d{3})[a-zA-Z0-9]?\.(\d{2})[oO]', arquivo_obs.name)
+        if match:
+            doy_str = match.group(1)
+            ano_str = match.group(2)
+            wk, dw, full_year, doy_int = gps_date_converter(ano_str, doy_str)
+            
+            # Filtra os de Navegação que contenham o mesmo DOY no nome
+            nav_files = [f for f in nav_files if doy_str in f.name]
+            
+            # Filtra SP3 e CLK com base na data (Padrão longo: YYYYDDD ou Curto: igsWWWD)
+            padrao_longo = f"{full_year}{doy_str}"
+            padrao_curto = f"igs{wk}{dw}"
+            
+            arquivos_sp3 = [f for f in arquivos_sp3 if padrao_longo in f.name or padrao_curto in f.name]
+            arquivos_clk = [f for f in arquivos_clk if padrao_longo in f.name or padrao_curto in f.name]
+
         if not arquivos_sp3:
             return f"⚠️ Pulei {arquivo_obs.name}: Faltam arquivos .sp3 (Orbitas)."
         if not arquivos_clk:
