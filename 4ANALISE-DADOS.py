@@ -19,17 +19,94 @@ def calcular_variacao_milimetros(df):
     fator_lat = 111320.0 
     fator_lon = 111320.0 * math.cos(math.radians(media_lat))
 
-    # Diferença em relação à média convertida para milímetros (* 1000)
+    # Diferença em relação à média convertida para Milímetros (* 1000)
     df['dN (mm)'] = (df['Lat'] - media_lat) * fator_lat * 1000
     df['dE (mm)'] = (df['Lon'] - media_lon) * fator_lon * 1000
     df['dU (mm)'] = (df['Alt'] - media_alt) * 1000
 
     return df, media_lat, media_lon, media_alt
 
-def main():
-    print("📈 GERADOR DE SÉRIE TEMPORAL DE COORDENADAS (Inter-Dias)")
+def processar_e_plotar(arquivos, constelacao, pasta_resultados):
+    """
+    Lê os arquivos de uma constelação específica, extrai a mediana diária
+    e gera um gráfico em PNG.
+    """
+    print(f"\n🔍 Processando {len(arquivos)} arquivos para a constelação: {constelacao}...")
+    
+    colunas_padrao = ['Date', 'Time', 'Lat', 'Lon', 'Height', 'Q', 'ns', 'sdn', 'sde', 'sdu', 'sdne', 'sdeu', 'sdun', 'age', 'ratio']
+    dados_diarios = []
 
-    # 1. Localizar os resultados
+    for arquivo in arquivos:
+        try:
+            df_temp = pd.read_csv(arquivo, comment='%', sep=r'\s+', names=colunas_padrao)
+            
+            if df_temp.empty:
+                continue
+
+            data_dia = pd.to_datetime(df_temp['Date'].iloc[0])
+            lat_mediana = df_temp['Lat'].median()
+            lon_mediana = df_temp['Lon'].median()
+            alt_mediana = df_temp['Height'].median()
+
+            dados_diarios.append({
+                'Data': data_dia,
+                'Lat': lat_mediana,
+                'Lon': lon_mediana,
+                'Alt': alt_mediana
+            })
+        except Exception as e:
+            print(f"⚠️ Erro ao ler {arquivo.name}: {e}")
+
+    if not dados_diarios:
+        print(f"❌ Nenhum dado válido pôde ser extraído para {constelacao}.")
+        return
+
+    # Criar DataFrame com o resumo diário e ordenar cronologicamente
+    df_resumo = pd.DataFrame(dados_diarios)
+    df_resumo = df_resumo.sort_values('Data').reset_index(drop=True)
+
+    # Calcular as variações em milímetros
+    df_resumo, m_lat, m_lon, m_alt = calcular_variacao_milimetros(df_resumo)
+
+    print(f"🎯 Média {constelacao}: Lat {m_lat:.8f}°, Lon {m_lon:.8f}°, Alt {m_alt:.3f}m")
+
+    # Plotar a Série Temporal
+    plt.style.use('ggplot')
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
+    fig.suptitle(f'Série Temporal de Posição PPP - {constelacao}\nVariação Diária (Norte, Leste, Altitude)', fontsize=16, fontweight='bold')
+
+    estilo = {'marker': 'o', 'markersize': 5, 'linewidth': 1.5, 'alpha': 0.8}
+
+    # Norte
+    ax1.plot(df_resumo['Data'], df_resumo['dN (mm)'], color='tab:blue', **estilo)
+    ax1.set_ylabel('Norte (mm)', fontweight='bold')
+    ax1.axhline(0, color='black', linestyle='-', linewidth=1, alpha=0.5)
+
+    # Leste
+    ax2.plot(df_resumo['Data'], df_resumo['dE (mm)'], color='tab:orange', **estilo)
+    ax2.set_ylabel('Leste (mm)', fontweight='bold')
+    ax2.axhline(0, color='black', linestyle='-', linewidth=1, alpha=0.5)
+
+    # Altitude (Up)
+    ax3.plot(df_resumo['Data'], df_resumo['dU (mm)'], color='tab:green', **estilo)
+    ax3.set_ylabel('Altitude (mm)', fontweight='bold')
+    ax3.set_xlabel('Data da Observação', fontweight='bold')
+    ax3.axhline(0, color='black', linestyle='-', linewidth=1, alpha=0.5)
+
+    # Formatação do eixo X
+    ax3.xaxis.set_major_formatter(mdates.DateFormatter('%d/%b/%Y'))
+    plt.gcf().autofmt_xdate()
+    
+    # Salvar
+    caminho_grafico = pasta_resultados / f"Serie_Temporal_{constelacao}.png"
+    plt.tight_layout()
+    plt.savefig(caminho_grafico, dpi=300, bbox_inches='tight')
+    print(f"✅ Gráfico salvo: {caminho_grafico.name}")
+    plt.close() # Fecha a figura para não sobrepor com a próxima constelação
+
+def main():
+    print("📈 GERADOR DE SÉRIE TEMPORAL DE COORDENADAS (3 Constelações)")
+
     caminho_salvo = utils.carregar_estado("pasta_rinex_pronta")
     if not caminho_salvo:
         print("❌ Memória não encontrada. Defina a pasta manualmente.")
@@ -48,94 +125,20 @@ def main():
         print(f"❌ Nenhum arquivo .pos encontrado na pasta: {pasta_resultados}")
         return
 
-    print(f"🔍 Extraindo coordenadas diárias de {len(arquivos_pos)} arquivos. Aguarde...")
+    # Separar os arquivos pelos prefixos no nome
+    arq_gps = [f for f in arquivos_pos if f.name.startswith("GPS_") and "GLONASS" not in f.name]
+    arq_glo = [f for f in arquivos_pos if f.name.startswith("GLONASS_")]
+    arq_gps_glo = [f for f in arquivos_pos if f.name.startswith("GPS_GLONASS_")]
 
-    # 2. Ler todos os arquivos e extrair a Mediana de cada dia
-    colunas_padrao = ['Date', 'Time', 'Lat', 'Lon', 'Height', 'Q', 'ns', 'sdn', 'sde', 'sdu', 'sdne', 'sdeu', 'sdun', 'age', 'ratio']
-    dados_diarios = []
+    # Processar e gerar os gráficos um por um
+    if arq_gps: 
+        processar_e_plotar(arq_gps, "GPS", pasta_resultados)
+    if arq_glo: 
+        processar_e_plotar(arq_glo, "GLONASS", pasta_resultados)
+    if arq_gps_glo: 
+        processar_e_plotar(arq_gps_glo, "GPS_GLONASS", pasta_resultados)
 
-    for arquivo in arquivos_pos:
-        try:
-            # Lê o arquivo ignorando os cabeçalhos
-            df_temp = pd.read_csv(arquivo, comment='%', delim_whitespace=True, names=colunas_padrao)
-            
-            if df_temp.empty:
-                continue
-
-            # Pega a data do primeiro registro do arquivo
-            data_dia = pd.to_datetime(df_temp['Date'].iloc[0])
-            
-            # Usa a mediana para ignorar a fase de convergência inicial do PPP
-            lat_mediana = df_temp['Lat'].median()
-            lon_mediana = df_temp['Lon'].median()
-            alt_mediana = df_temp['Height'].median()
-
-            dados_diarios.append({
-                'Data': data_dia,
-                'Lat': lat_mediana,
-                'Lon': lon_mediana,
-                'Alt': alt_mediana
-            })
-        except Exception as e:
-            print(f"⚠️ Erro ao ler {arquivo.name}: {e}")
-
-    if not dados_diarios:
-        print("❌ Nenhum dado válido pôde ser extraído dos arquivos.")
-        return
-
-    # 3. Criar DataFrame com o resumo diário e ordenar cronologicamente
-    df_resumo = pd.DataFrame(dados_diarios)
-    df_resumo = df_resumo.sort_values('Data').reset_index(drop=True)
-
-    # 4. Calcular as variações em milímetros
-    df_resumo, m_lat, m_lon, m_alt = calcular_variacao_milimetros(df_resumo)
-
-    print("\n==================================================")
-    print("🎯 COORDENADA MÉDIA DA SÉRIE TEMPORAL:")
-    print(f"   Latitude:  {m_lat:.8f}°")
-    print(f"   Longitude: {m_lon:.8f}°")
-    print(f"   Altitude:  {m_alt:.3f} metros")
-    print("==================================================\n")
-
-    # 5. Plotar a Série Temporal
-    print("🎨 Gerando gráfico da série temporal...")
-    plt.style.use('ggplot')
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
-    fig.suptitle('Série Temporal de Posição PPP\nVariação Diária (Norte, Leste, Altitude)', fontsize=16, fontweight='bold')
-
-    # Configuração dos marcadores (bolinhas com linhas conectando)
-    estilo = {'marker': 'o', 'markersize': 5, 'linewidth': 1.5, 'alpha': 0.8}
-
-    # Norte
-    ax1.plot(df_resumo['Data'], df_resumo['dN (mm)'], color='tab:blue', **estilo)
-    ax1.set_ylabel('Norte (mm)', fontweight='bold')
-    ax1.axhline(0, color='black', linestyle='-', linewidth=1, alpha=0.5)
-    ax1.grid(True, linestyle=':', alpha=0.7)
-
-    # Leste
-    ax2.plot(df_resumo['Data'], df_resumo['dE (mm)'], color='tab:orange', **estilo)
-    ax2.set_ylabel('Leste (mm)', fontweight='bold')
-    ax2.axhline(0, color='black', linestyle='-', linewidth=1, alpha=0.5)
-    ax2.grid(True, linestyle=':', alpha=0.7)
-
-    # Altitude (Up)
-    ax3.plot(df_resumo['Data'], df_resumo['dU (mm)'], color='tab:green', **estilo)
-    ax3.set_ylabel('Altitude (mm)', fontweight='bold')
-    ax3.set_xlabel('Data da Observação', fontweight='bold')
-    ax3.axhline(0, color='black', linestyle='-', linewidth=1, alpha=0.5)
-    ax3.grid(True, linestyle=':', alpha=0.7)
-
-    # Formatação do eixo X para mostrar datas bonitas
-    ax3.xaxis.set_major_formatter(mdates.DateFormatter('%d/%b/%Y'))
-    plt.gcf().autofmt_xdate() # Rotaciona as datas para não sobrepor
-    
-    # Salvar e mostrar
-    caminho_grafico = pasta_resultados / "Serie_Temporal_PPP.png"
-    plt.tight_layout()
-    plt.savefig(caminho_grafico, dpi=300, bbox_inches='tight')
-    print(f"✅ Gráfico salvo em alta resolução: {caminho_grafico}")
-    
-    plt.show()
+    print("\n🎉 Todas as séries temporais foram geradas com sucesso!")
 
 if __name__ == "__main__":
     main()
