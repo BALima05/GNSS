@@ -7,6 +7,7 @@ scripts = [
     "1IBGE-RBMC.py",
     "2BAIXAR-PRODUTOS.py",
     "3RTKlib-PPP.py"
+    "4ANALISE-DADOS.py"
 ]
 
 print("🚀 INICIANDO PROCESSAMENTO EM CADEIA")
