@@ -38,7 +38,7 @@ def processar_e_plotar(arquivos, constelacao, pasta_resultados):
 
     for arquivo in arquivos:
         try:
-            df_temp = pd.read_csv(arquivo, comment='%', sep=r'\s+', names=colunas_padrao)
+            df_temp = pd.read_csv(arquivo, comment='%', sep=r'\s+', names=colunas_padrao, encoding='latin1')
             
             if df_temp.empty:
                 continue
