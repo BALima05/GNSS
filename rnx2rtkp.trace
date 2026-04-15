@@ -1,0 +1,221 @@
+3 postpos : ti=0 tu=0 n=7 outfile=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\RESULTADOS_PPP\GPS_GLONASS_poli0311.pos
+3 openses :
+3 execses_b: n=7 outfile=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\RESULTADOS_PPP\GPS_GLONASS_poli0311.pos
+2 readpreceph: n=7
+3 readpephs: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\2 - Dados separados por satélite (Prontos para RTKLIB)\GPS_GLONASS\GPS_GLONASS_poli0311.24o
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\2 - Dados separados por satélite (Prontos para RTKLIB)\GPS_GLONASS\GPS_GLONASS_poli0311.24o nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\2 - Dados separados por satélite (Prontos para RTKLIB)\GPS_GLONASS\GPS_GLONASS_poli0311.24o
+3 readpephs: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24n
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24n nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24n
+3 readpephs: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24n
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24n nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24n
+3 readpephs: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24g
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24g nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24g
+3 readpephs: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24g
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24g nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24g
+3 readpephs: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_05M_ORB.SP3
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_05M_ORB.SP3 nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_05M_ORB.SP3
+3 readsp3h:
+3 readsp3b: type=P ns=121 index=0 opt=0
+2 sp3 invalid epoch /* Product reference - DOI 10.4
+2 sp3 invalid epoch /* PCV:IGS20      OL/AL:FES2014
+3 combpeph: ne=289
+3 readpephs: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_30S_CLK.CLK
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_30S_CLK.CLK nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_30S_CLK.CLK
+3 combpeph: ne=289
+3 readrnxc: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\2 - Dados separados por satélite (Prontos para RTKLIB)\GPS_GLONASS\GPS_GLONASS_poli0311.24o
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\2 - Dados separados por satélite (Prontos para RTKLIB)\GPS_GLONASS\GPS_GLONASS_poli0311.24o nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\2 - Dados separados por satélite (Prontos para RTKLIB)\GPS_GLONASS\GPS_GLONASS_poli0311.24o
+3 readrnxfile: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\2 - Dados separados por satélite (Prontos para RTKLIB)\GPS_GLONASS\GPS_GLONASS_poli0311.24o flag=1 index=0
+3 rtk_uncompress: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\2 - Dados separados por satélite (Prontos para RTKLIB)\GPS_GLONASS\GPS_GLONASS_poli0311.24o
+3 rtk_uncompress: stat=0
+3 readrnxfp: flag=1 index=0
+3 readrnxh:
+3 convcode: ver=2.11 sys= 1 type= C1 -> C1C
+3 convcode: ver=2.11 sys= 4 type= C1 -> C1C
+3 convcode: ver=2.11 sys= 8 type= C1 -> C1X
+3 convcode: ver=2.11 sys=16 type= C1 -> C1C
+3 convcode: ver=2.11 sys= 2 type= C1 -> C1C
+3 convcode: ver=2.11 sys=32 type= C1 ->    
+3 convcode: ver=2.11 sys= 1 type= C2 -> C2X
+3 convcode: ver=2.11 sys= 4 type= C2 -> C2C
+3 convcode: ver=2.11 sys= 8 type= C2 ->    
+3 convcode: ver=2.11 sys=16 type= C2 -> C2X
+3 convcode: ver=2.11 sys= 2 type= C2 ->    
+3 convcode: ver=2.11 sys=32 type= C2 -> C2X
+3 convcode: ver=2.11 sys= 1 type= C5 -> C5X
+3 convcode: ver=2.11 sys= 4 type= C5 ->    
+3 convcode: ver=2.11 sys= 8 type= C5 -> C5X
+3 convcode: ver=2.11 sys=16 type= C5 -> C5X
+3 convcode: ver=2.11 sys= 2 type= C5 -> C5X
+3 convcode: ver=2.11 sys=32 type= C5 ->    
+3 convcode: ver=2.11 sys= 1 type= C7 ->    
+3 convcode: ver=2.11 sys= 4 type= C7 ->    
+3 convcode: ver=2.11 sys= 8 type= C7 -> C7X
+3 convcode: ver=2.11 sys=16 type= C7 ->    
+3 convcode: ver=2.11 sys= 2 type= C7 ->    
+3 convcode: ver=2.11 sys=32 type= C7 -> C7X
+3 convcode: ver=2.11 sys= 1 type= C8 ->    
+3 convcode: ver=2.11 sys= 4 type= C8 ->    
+3 convcode: ver=2.11 sys= 8 type= C8 -> C8X
+3 convcode: ver=2.11 sys=16 type= C8 ->    
+3 convcode: ver=2.11 sys= 2 type= C8 ->    
+3 convcode: ver=2.11 sys=32 type= C8 ->    
+3 convcode: ver=2.11 sys= 1 type= L1 -> L1C
+3 convcode: ver=2.11 sys= 4 type= L1 -> L1C
+3 convcode: ver=2.11 sys= 8 type= L1 -> L1X
+3 convcode: ver=2.11 sys=16 type= L1 -> L1C
+3 convcode: ver=2.11 sys= 2 type= L1 -> L1C
+3 convcode: ver=2.11 sys=32 type= L1 ->    
+3 convcode: ver=2.11 sys= 1 type= L2 -> L2W
+3 convcode: ver=2.11 sys= 4 type= L2 -> L2P
+3 convcode: ver=2.11 sys= 8 type= L2 ->    
+3 convcode: ver=2.11 sys=16 type= L2 -> L2X
+3 convcode: ver=2.11 sys= 2 type= L2 ->    
+3 convcode: ver=2.11 sys=32 type= L2 -> L2X
+3 convcode: ver=2.11 sys= 1 type= L5 -> L5X
+3 convcode: ver=2.11 sys= 4 type= L5 ->    
+3 convcode: ver=2.11 sys= 8 type= L5 -> L5X
+3 convcode: ver=2.11 sys=16 type= L5 -> L5X
+3 convcode: ver=2.11 sys= 2 type= L5 -> L5X
+3 convcode: ver=2.11 sys=32 type= L5 ->    
+3 convcode: ver=2.11 sys= 1 type= L7 ->    
+3 convcode: ver=2.11 sys= 4 type= L7 ->    
+3 convcode: ver=2.11 sys= 8 type= L7 -> L7X
+3 convcode: ver=2.11 sys=16 type= L7 ->    
+3 convcode: ver=2.11 sys= 2 type= L7 ->    
+3 convcode: ver=2.11 sys=32 type= L7 -> L7X
+3 convcode: ver=2.11 sys= 1 type= L8 ->    
+3 convcode: ver=2.11 sys= 4 type= L8 ->    
+3 convcode: ver=2.11 sys= 8 type= L8 -> L8X
+3 convcode: ver=2.11 sys=16 type= L8 ->    
+3 convcode: ver=2.11 sys= 2 type= L8 ->    
+3 convcode: ver=2.11 sys=32 type= L8 ->    
+3 convcode: ver=2.11 sys= 1 type= P1 -> C1W
+3 convcode: ver=2.11 sys= 4 type= P1 -> C1P
+3 convcode: ver=2.11 sys= 8 type= P1 ->    
+3 convcode: ver=2.11 sys=16 type= P1 ->    
+3 convcode: ver=2.11 sys= 2 type= P1 ->    
+3 convcode: ver=2.11 sys=32 type= P1 ->    
+3 convcode: ver=2.11 sys= 1 type= P2 -> C2W
+3 convcode: ver=2.11 sys= 4 type= P2 -> C2P
+3 convcode: ver=2.11 sys= 8 type= P2 ->    
+3 convcode: ver=2.11 sys=16 type= P2 ->    
+3 convcode: ver=2.11 sys= 2 type= P2 ->    
+3 convcode: ver=2.11 sys=32 type= P2 ->    
+3 convcode: ver=2.11 sys= 1 type= S1 -> S1C
+3 convcode: ver=2.11 sys= 4 type= S1 -> S1C
+3 convcode: ver=2.11 sys= 8 type= S1 -> S1X
+3 convcode: ver=2.11 sys=16 type= S1 -> S1C
+3 convcode: ver=2.11 sys= 2 type= S1 -> S1C
+3 convcode: ver=2.11 sys=32 type= S1 ->    
+3 convcode: ver=2.11 sys= 1 type= S2 -> S2W
+3 convcode: ver=2.11 sys= 4 type= S2 -> S2P
+3 convcode: ver=2.11 sys= 8 type= S2 ->    
+3 convcode: ver=2.11 sys=16 type= S2 -> S2X
+3 convcode: ver=2.11 sys= 2 type= S2 ->    
+3 convcode: ver=2.11 sys=32 type= S2 -> S2X
+3 convcode: ver=2.11 sys= 1 type= S5 -> S5X
+3 convcode: ver=2.11 sys= 4 type= S5 ->    
+3 convcode: ver=2.11 sys= 8 type= S5 -> S5X
+3 convcode: ver=2.11 sys=16 type= S5 -> S5X
+3 convcode: ver=2.11 sys= 2 type= S5 -> S5X
+3 convcode: ver=2.11 sys=32 type= S5 ->    
+3 convcode: ver=2.11 sys= 1 type= S7 ->    
+3 convcode: ver=2.11 sys= 4 type= S7 ->    
+3 convcode: ver=2.11 sys= 8 type= S7 -> S7X
+3 convcode: ver=2.11 sys=16 type= S7 ->    
+3 convcode: ver=2.11 sys= 2 type= S7 ->    
+3 convcode: ver=2.11 sys=32 type= S7 -> S7X
+3 convcode: ver=2.11 sys= 1 type= S8 ->    
+3 convcode: ver=2.11 sys= 4 type= S8 ->    
+3 convcode: ver=2.11 sys= 8 type= S8 -> S8X
+3 convcode: ver=2.11 sys=16 type= S8 ->    
+3 convcode: ver=2.11 sys= 2 type= S8 ->    
+3 convcode: ver=2.11 sys=32 type= S8 ->    
+3 readrnxc: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24n
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24n nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24n
+3 readrnxfile: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24n flag=1 index=0
+3 rtk_uncompress: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24n
+3 rtk_uncompress: stat=0
+3 readrnxfp: flag=1 index=0
+3 readrnxh:
+3 readrnxc: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24n
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24n nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24n
+3 readrnxfile: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24n flag=1 index=0
+3 rtk_uncompress: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24n
+3 rtk_uncompress: stat=0
+3 readrnxfp: flag=1 index=0
+3 readrnxh:
+3 readrnxc: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24g
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24g nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24g
+3 readrnxfile: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24g flag=1 index=0
+3 rtk_uncompress: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24g
+3 rtk_uncompress: stat=0
+3 readrnxfp: flag=1 index=0
+3 readrnxh:
+3 readrnxc: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24g
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24g nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24g
+3 readrnxfile: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24g flag=1 index=0
+3 rtk_uncompress: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24g
+3 rtk_uncompress: stat=0
+3 readrnxfp: flag=1 index=0
+3 readrnxh:
+3 readrnxc: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_05M_ORB.SP3
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_05M_ORB.SP3 nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_05M_ORB.SP3
+3 readrnxfile: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_05M_ORB.SP3 flag=1 index=0
+3 rtk_uncompress: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_05M_ORB.SP3
+3 rtk_uncompress: stat=0
+3 readrnxfp: flag=1 index=0
+3 readrnxh:
+3 readrnxc: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_30S_CLK.CLK
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_30S_CLK.CLK nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_30S_CLK.CLK
+3 readrnxfile: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_30S_CLK.CLK flag=1 index=0
+3 rtk_uncompress: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_30S_CLK.CLK
+3 rtk_uncompress: stat=0
+3 readrnxfp: flag=1 index=0
+3 readrnxh:
+3 readrnxclk: index=0
+3 combpclk: nc=2880
+3 sbsreadmsg: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\2 - Dados separados por satélite (Prontos para RTKLIB)\GPS_GLONASS\GPS_GLONASS_poli0311.24o sel=0
+3 sbsreadmsgt: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\2 - Dados separados por satélite (Prontos para RTKLIB)\GPS_GLONASS\GPS_GLONASS_poli0311.24o sel=0
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\2 - Dados separados por satélite (Prontos para RTKLIB)\GPS_GLONASS\GPS_GLONASS_poli0311.24o nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\2 - Dados separados por satélite (Prontos para RTKLIB)\GPS_GLONASS\GPS_GLONASS_poli0311.24o
+3 sbsreadmsg: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24n sel=0
+3 sbsreadmsgt: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24n sel=0
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24n nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24n
+3 sbsreadmsg: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24n sel=0
+3 sbsreadmsgt: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24n sel=0
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24n nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24n
+3 sbsreadmsg: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24g sel=0
+3 sbsreadmsgt: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24g sel=0
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24g nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0031.24g
+3 sbsreadmsg: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24g sel=0
+3 sbsreadmsgt: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24g sel=0
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24g nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\1.1 - Navegacao Broadcast\poli0311.24g
+3 sbsreadmsg: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_05M_ORB.SP3 sel=0
+3 sbsreadmsgt: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_05M_ORB.SP3 sel=0
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_05M_ORB.SP3 nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_05M_ORB.SP3
+3 sbsreadmsg: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_30S_CLK.CLK sel=0
+3 sbsreadmsgt: file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_30S_CLK.CLK sel=0
+3 expath  : path=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_30S_CLK.CLK nmax=1024
+3 expath  : file=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\IGS_PRODUCTS\COD0MGXFIN_20240310000_01D_30S_CLK.CLK
+3 execses_r: n=7 outfile=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\RESULTADOS_PPP\GPS_GLONASS_poli0311.pos
+3 execses : n=7 outfile=C:\Users\berna\Documents\PUB IC\Dados processados\JAN_24\RESULTADOS_PPP\GPS_GLONASS_poli0311.pos

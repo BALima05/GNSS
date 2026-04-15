@@ -67,8 +67,11 @@ def descompactar_z_7zip(arquivo_z, pasta_destino):
 def encontrar_melhor_arquivo(lista_arquivos_server, ano, doy, tipo):
     """
     Procura na lista do servidor o melhor arquivo para a data,
-    suportando Nomes Curtos (Antigo) e Nomes Longos (Novo).
-    tipo: 'sp3' ou 'clk'
+    dando PRIORIDADE MÁXIMA aos arquivos originais do IGS (IGS0OPS),
+    exigindo OBRIGATORIAMENTE que o arquivo de relógio seja de 30 Segundos (30S)
+    para que o PPP convirja corretamente.
+    Ignora propositalmente produtos de outros centros (como o CODE) 
+    que causam incompatibilidade de leitura no RTKLIB.
     """
     ano_str = str(ano)
     doy_str = f"{int(doy):03d}" # Ex: 004
@@ -81,7 +84,8 @@ def encontrar_melhor_arquivo(lista_arquivos_server, ano, doy, tipo):
     if tipo == 'sp3':
         padrao_longo = f"*_{ano_str}{doy_str}*ORB.SP3*" 
     else: # clk
-        padrao_longo = f"*_{ano_str}{doy_str}*CLK.CLK*"
+        # Forçar o "30S" no nome do arquivo
+        padrao_longo = f"*_{ano_str}{doy_str}*30S_CLK.CLK*"
 
     # Padrão 2: Nome Curto (Legado)
     # Ex: igsWWWD.sp3.Z (Isso é difícil de montar aqui sem a semana, 
@@ -97,6 +101,8 @@ def encontrar_melhor_arquivo(lista_arquivos_server, ano, doy, tipo):
         if finais: return finais[0] # Retorna o primeiro Final encontrado
         return candidatos[0] # Se não tiver Final, vai o Rapid mesmo
     
+    # Se retornar None, a função main() já está programada para 
+    # acionar o "Fallback" e baixar os arquivos de nome curto (igsWWWD.sp3)
     return None
 
 def main():
