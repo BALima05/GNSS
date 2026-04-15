@@ -64,7 +64,6 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
             str(rnx2rtkp_path),
             '-k', str(config_file),
             '-o', str(arquivo_pos),
-            '-x', '3',  # Adiciona nível de debug 3
             str(arquivo_obs)
         ]
         
