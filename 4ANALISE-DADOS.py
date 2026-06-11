@@ -36,7 +36,7 @@ def processar_e_plotar(arquivos, constelacao, pasta_resultados):
     colunas_padrao = ['Date', 'Time', 'Lat', 'Lon', 'Height', 'Q', 'ns', 'sdn', 'sde', 'sdu', 'sdne', 'sdeu', 'sdun', 'age', 'ratio']
     dados_diarios = []
 
-    # --- NOVIDADE: LIMITE ABSOLUTO DE QUALIDADE (10 centímetros) ---
+    # --- LIMITE ABSOLUTO DE QUALIDADE (metros) ---
     LIMITE_ERRO_METROS = 0.10
 
     for arquivo in arquivos:
@@ -58,14 +58,14 @@ def processar_e_plotar(arquivos, constelacao, pasta_resultados):
             # 2. Calcular a incerteza 3D
             df_temp['sd_3d'] = (df_temp['sdn']**2 + df_temp['sde']**2 + df_temp['sdu']**2)**0.5
 
-            # 3. FILTRO ABSOLUTO: Excluir tudo que tem erro maior que 10 cm
+            # 3. FILTRO ABSOLUTO: Excluir tudo que tem erro maior que o limite
             df_temp = df_temp[df_temp['sd_3d'] <= LIMITE_ERRO_METROS]
 
             if df_temp.empty:
                 print(f"      ⚠️ {arquivo.name}: Ignorado (Nenhuma época alcançou precisão 3D < {LIMITE_ERRO_METROS*100:.0f}cm)")
                 continue
 
-            # 4. Pegar a nata dos 5% melhores, MAS agora dentro dos que já passaram no teste de 10 cm
+            # 4. Pegar a nata dos 5% melhores, MAS agora dentro dos que já passaram no teste do limite
             df_temp = df_temp.sort_values('sd_3d')
             n_pontos = max(1, int(len(df_temp) * 0.05))
             df_melhores = df_temp.head(n_pontos)
@@ -92,7 +92,23 @@ def processar_e_plotar(arquivos, constelacao, pasta_resultados):
     # Calcular as variações reais
     df_resumo, m_lat, m_lon, m_alt = calcular_variacao_milimetros(df_resumo)
 
+    # Cálculos Estatísticos
+    std_n, std_e, std_u = df_resumo['dN (mm)'].std(), df_resumo['dE (mm)'].std(), df_resumo['dU (mm)'].std()
+    rmse_n = (df_resumo['dN (mm)']**2).mean()**0.5
+    rmse_e = (df_resumo['dE (mm)']**2).mean()**0.5
+    rmse_u = (df_resumo['dU (mm)']**2).mean()**0.5
+
     print(f"🎯 Média {constelacao}: Lat {m_lat:.8f}°, Lon {m_lon:.8f}°, Alt {m_alt:.3f}m")
+    print(f"📊 ESTATÍSTICAS DA SÉRIE (Variação em milímetros):")
+    print(f"  NORTE -> Desvio Padrão: {std_n:.2f} | RMSE: {rmse_n:.2f} | Min: {df_resumo['dN (mm)'].min():.2f} | Máx: {df_resumo['dN (mm)'].max():.2f}")
+    print(f"  LESTE -> Desvio Padrão: {std_e:.2f} | RMSE: {rmse_e:.2f} | Min: {df_resumo['dE (mm)'].min():.2f} | Máx: {df_resumo['dE (mm)'].max():.2f}")
+    print(f"  ALT   -> Desvio Padrão: {std_u:.2f} | RMSE: {rmse_u:.2f} | Min: {df_resumo['dU (mm)'].min():.2f} | Máx: {df_resumo['dU (mm)'].max():.2f}")
+
+    # Salvar tabela Excel/CSV
+    pasta_tabelas = pasta_resultados / "Tabelas_Estatisticas"
+    os.makedirs(pasta_tabelas, exist_ok=True)
+    arquivo_csv = pasta_tabelas / f"Dados_Serie_{constelacao}.csv"
+    df_resumo.to_csv(arquivo_csv, index=False, sep=';', decimal=',')
 
     # Plotar os gráficos
     plt.style.use('ggplot')
@@ -104,6 +120,19 @@ def processar_e_plotar(arquivos, constelacao, pasta_resultados):
     ax1.plot(df_resumo['Data'], df_resumo['dN (mm)'], color='tab:blue', **estilo)
     ax1.set_ylabel('Norte (mm)', fontweight='bold')
     ax1.axhline(0, color='black', linestyle='-', linewidth=1, alpha=0.5)
+
+    # Caixa de Estatísticas no Gráfico
+    caixa_texto = (f"ESTATÍSTICAS (1σ)\n\n"
+                   f"N: ± {std_n:.1f} mm\n"
+                   f"E: ± {std_e:.1f} mm\n"
+                   f"U: ± {std_u:.1f} mm\n\n"
+                   f"MÉDIAS COORDS\n\n"
+                   f"Lat: {m_lat:.8f}°\n"
+                   f"Lon: {m_lon:.8f}°\n"
+                   f"Alt: {m_alt:.3f}m")
+    props = dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.9, edgecolor='gray')
+    ax1.text(1.02, 0.5, caixa_texto, transform=ax1.transAxes, fontsize=11, fontweight='bold', 
+             verticalalignment='center', bbox=props)
 
     ax2.plot(df_resumo['Data'], df_resumo['dE (mm)'], color='tab:orange', **estilo)
     ax2.set_ylabel('Leste (mm)', fontweight='bold')
@@ -117,7 +146,7 @@ def processar_e_plotar(arquivos, constelacao, pasta_resultados):
     ax3.xaxis.set_major_formatter(mdates.DateFormatter('%d/%b/%Y'))
     plt.gcf().autofmt_xdate()
     
-    # Salvar
+    # Salvar gráfico
     pasta_graficos = pasta_resultados / "Graficos_Serie_Temporal"
     os.makedirs(pasta_graficos, exist_ok=True)
     caminho_grafico = pasta_graficos / f"Serie_Temporal_{constelacao}.png"
