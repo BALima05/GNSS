@@ -9,30 +9,47 @@ import config
 import datetime
 import io
 import utils
+import urllib.request
+import urllib.error
+import gzip
+import time
 
 # Descobrir Mês e Ano automaticamente pelo ZIP
 def descobrir_mes_ano_automatico(caminho_origem):
     """
     Analisa ZIP/Pasta (e Zips aninhados) para encontrar o primeiro arquivo GNSS
-    válido e determinar o Mês e Ano.
+    válido (RINEX 2 ou RINEX 3) e determinar o Mês e Ano.
     """
     caminho = Path(caminho_origem)
     print(f"\n🕵️ MODO RAIO-X: Analisando data em {caminho.name}...")
 
-    # Regex: (Dia)(Sessão).(Ano)(Tipo) -> ex: 0010.24d, 001a.24o
-    padrao_data = re.compile(r"(\d{3})[0-9a-zA-Z]\.(\d{2})[dDoO]")
+    # Padrão RINEX 2: (Dia)(Sessão).(Ano)(Tipo) -> ex: 0010.24d, poli001a.24o
+    padrao_rnx2 = re.compile(r"(\d{3})[0-9a-zA-Z]\.(\d{2})[dDoO]")
+
+    # Padrão RINEX 3: _(Ano)(DOY)(HoraMinuto)_ -> ex: POLI00BRA_R_20240310000_01D...
+    padrao_rnx3 = re.compile(r"_(\d{4})(\d{3})\d{4}_")
 
     def tentar_extrair_data(lista_nomes):
         """Helper para verificar uma lista de nomes de arquivos"""
         for nome in lista_nomes:
             nome_limpo = Path(nome).name
-            match = padrao_data.search(nome_limpo)
-            if match:
-                doy = int(match.group(1))
-                ano = int(match.group(2))
+            
+            match3 = padrao_rnx3.search(nome_limpo)
+            if match3:
+                ano_completo = int(match3.group(1)) # Pega os 4 dígitos do Ano
+                doy = int(match3.group(2))          # Pega os 3 dígitos do DOY
+                data_obj = datetime.datetime(ano_completo, 1, 1) + datetime.timedelta(days=doy - 1)
+                return data_obj.strftime("%b_%y").upper(), nome_limpo
+
+            # 2. Tenta identificar como formato clássico (RINEX 2)
+            match2 = padrao_rnx2.search(nome_limpo)
+            if match2:
+                doy = int(match2.group(1))          # Pega os 3 dígitos do DOY
+                ano = int(match2.group(2))          # Pega os 2 dígitos do Ano
                 ano_completo = 2000 + ano
                 data_obj = datetime.datetime(ano_completo, 1, 1) + datetime.timedelta(days=doy - 1)
                 return data_obj.strftime("%b_%y").upper(), nome_limpo
+                
         return None, None
 
     try:
@@ -118,11 +135,12 @@ def descompactar_zip(origem_path, pasta_destino_d_path, pasta_destino_nav_path):
             with zipfile.ZipFile(origem_path, 'r') as z:
                 z.extractall(temp_raiz)
         elif origem_path.is_dir():
-            for f in origem_path.glob("*.zip"):
+            zips_origem = [f for f in origem_path.iterdir() if f.is_file() and f.suffix.lower() == '.zip']
+            for f in zips_origem:
                 shutil.copy(f, temp_raiz / f.name)
         
         print(">> Extraindo zips internos...")
-        zips_internos = list(temp_raiz.glob('*.zip'))
+        zips_internos = [f for f in temp_raiz.iterdir() if f.is_file() and f.suffix.lower() == '.zip']
         for arq_zip in zips_internos:
             try:
                 with zipfile.ZipFile(arq_zip, 'r') as z:
@@ -133,105 +151,210 @@ def descompactar_zip(origem_path, pasta_destino_d_path, pasta_destino_nav_path):
         print(">> Organizando arquivos (.d e navegação)...")
         count_d = 0
         count_n = 0
-        
-        for raiz, dirs, arquivos in os.walk(temp_extraidos):
-            for arquivo in arquivos:
-                caminho_origem = Path(raiz) / arquivo
-                
-                # ####### LÓGICA DE SEPARAÇÃO #######
-                
-                # 1. Arquivos Hatanaka (.YYd)
-                if re.search(r"\.\d{2}d$", arquivo, re.IGNORECASE):
-                    shutil.move(caminho_origem, pasta_destino_d_path / arquivo)
-                    count_d += 1
-                    
-                # 2. Arquivos de Navegação (.YYn = GPS, .YYg = GLONASS, .YYp = Misto)
-                elif re.search(r"\.\d{2}[ngp]$", arquivo, re.IGNORECASE):
-                    shutil.move(caminho_origem, pasta_destino_nav_path / arquivo)
-                    count_n += 1
 
-        print(f"✅ Extração concluída: {count_d} arquivos .d e {count_n} arquivos de navegação.")
+        pastas_para_buscar = [temp_raiz, temp_extraidos]
+        
+        for pasta in pastas_para_buscar:
+            if not pasta.exists():
+                continue
+        
+            for raiz, dirs, arquivos in os.walk(pasta):
+                for arquivo in arquivos:
+                    caminho_origem = Path(raiz) / arquivo
+                    arq_lower = arquivo.lower()
+                
+                    # ####### LÓGICA DE SEPARAÇÃO #######
+                
+                    # 1. RINEX 2 (.24d) ou RINEX 3 (.crx ou .crx.gz)
+                    if re.search(r"\.\d{2}d$", arq_lower) or arq_lower.endswith(".crx") or arq_lower.endswith(".crx.gz"):
+                        if caminho_origem.exists(): # Evita tentar mover algo que já foi movido
+                            shutil.move(caminho_origem, pasta_destino_d_path / arquivo)
+                            count_d += 1
+                        
+                    # 2. Arquivos de Navegação (.YYn, .YYg, .YYp ou RINEX 3 _MN.rnx / _MN.rnx.gz)
+                    elif re.search(r"\.\d{2}[ngp]$", arq_lower) or ("_mn" in arq_lower and "rnx" in arq_lower):
+                        if caminho_origem.exists():
+                            shutil.move(caminho_origem, pasta_destino_nav_path / arquivo)
+                            count_n += 1
+
+        print(f"✅ Extração concluída: {count_d} arquivos de observação e {count_n} arquivos de navegação.")
 
     finally:
         # Limpeza
-        if temp_raiz.exists(): shutil.rmtree(temp_raiz)
-        if temp_extraidos.exists(): shutil.rmtree(temp_extraidos)
+        if temp_raiz.exists(): shutil.rmtree(temp_raiz, ignore_errors=True)
+        if temp_extraidos.exists(): shutil.rmtree(temp_extraidos, ignore_errors=True)
 
 def _processar_crx(arquivo_d_path, crx2rnx_path):
-    """Função auxiliar para paralelismo do CRX2RNX."""
-    comando = f'"{crx2rnx_path}" "{arquivo_d_path}"'
+    """Converte Hatanaka em RINEX usando RNXCMP (Suporta Rinex 2 e 3)"""
     try:
-        subprocess.run(comando, shell=True, check=True, cwd=arquivo_d_path.parent,
-                         capture_output=True, text=True)
-        nome_saida = arquivo_d_path.with_suffix("." + arquivo_d_path.suffix[1:3] + "o").name
-        return f"🔁 Convertido: {arquivo_d_path.name} → {nome_saida}"
-    except subprocess.CalledProcessError as e:
-        return f"❌ Erro ao converter: {arquivo_d_path.name}. (Verifique CRX2RNX e permissões)\n{e.stderr}"
+        # Se for um .crx.gz (RINEX 3 Compactado), extrai primeiro
+        if arquivo_d_path.suffix.lower() == '.gz':
+            import gzip
+            with gzip.open(arquivo_d_path, 'rb') as f_in:
+                novo_path = arquivo_d_path.with_suffix('')
+                with open(novo_path, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+            os.remove(arquivo_d_path)
+            arquivo_d_path = novo_path
 
-def converter_crx2rnx(pasta_d_path, crx2rnx_path):
-    """Converte arquivos .d para .o em paralelo."""
-    regex_d = re.compile(r".*\.\d{2}d$", re.IGNORECASE)
-    arquivos_d = [f for f in pasta_d_path.glob('*') if f.is_file() and regex_d.match(f.name)]
-    
-    if not arquivos_d:
-        print("❌ Nenhum arquivo .d válido (ex: .22d) encontrado para conversão.")
-        return
-
-    print(f"Iniciando conversão de {len(arquivos_d)} arquivos Hatanaka...")
-    
-    # Usa ProcessPoolExecutor para rodar várias instâncias do CRX2RNX ao mesmo tempo
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        # Cria uma "tarefa" para cada arquivo, passando o caminho do CRX2RNX
-        tarefas = {executor.submit(_processar_crx, arquivo_d, crx2rnx_path): arquivo_d for arquivo_d in arquivos_d}
+        # O CRX2RNX é inteligente o suficiente para saber se a saída será .o ou .rnx
+        cmd = f'"{crx2rnx_path}" "{arquivo_d_path}"'
+        resultado = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         
-        # Coleta os resultados à medida que ficam prontos
+        if resultado.returncode == 0:
+            os.remove(arquivo_d_path)
+            return f"✅ Convertido: {arquivo_d_path.name}"
+        else:
+            return f"❌ Erro na conversão de {arquivo_d_path.name}: {resultado.stderr}"
+    except Exception as e:
+        return f"❌ Erro fatal em {arquivo_d_path.name}: {e}"
+
+def converter_crx2rnx_paralelo(pasta_d_path, crx2rnx_path):
+    # Pega tanto os .d antigos quanto os .crx modernos
+    arquivos_d = [
+        f for f in pasta_d_path.iterdir() 
+        if f.is_file() and (re.search(r"\.\d{2}[dD]$", f.name) or ".crx" in f.name.lower())
+    ]
+    
+    with concurrent.futures.ProcessPoolExecutor() as executor:
+        tarefas = {executor.submit(_processar_crx, arq, crx2rnx_path): arq for arq in arquivos_d}
         for futuro in concurrent.futures.as_completed(tarefas):
             print(futuro.result())
 
-def _processar_teqc(arquivo_o_path, teqc_path, gps_dir, glonass_dir, gps_glonass_dir):
-    """Função auxiliar para paralelismo do TEQC."""
+def _processar_gfzrnx(arquivo_o_path, gfzrnx_path, gps_dir, glonass_dir, gps_glonass_dir):
+    """Função auxiliar para paralelismo do GFZRNX (O substituto do TEQC)."""
     try:
         arquivo = arquivo_o_path.name
         gps_saida = gps_dir / f"GPS_{arquivo}"
         glonass_saida = glonass_dir / f"GLONASS_{arquivo}"
         gps_glonass_saida = gps_glonass_dir / f"GPS_GLONASS_{arquivo}"
-
-        # -R = GPS, -E = Galileo/BeiDou/QZSS (excluir)
-        subprocess.run(f'"{teqc_path}" -R -E "{arquivo_o_path}" > "{gps_saida}"', shell=True, check=True)
-        # -G = GLONASS
-        subprocess.run(f'"{teqc_path}" -G -E "{arquivo_o_path}" > "{glonass_saida}"', shell=True, check=True)
-        # Padrão (GPS+GLONASS)
-        subprocess.run(f'"{teqc_path}" -E "{arquivo_o_path}" > "{gps_glonass_saida}"', shell=True, check=True)
         
-        return f"🛰️  Processado TEQC: {arquivo}"
-    except subprocess.CalledProcessError as e:
-        return f"❌ Erro no TEQC: {arquivo_o_path.name}. O arquivo pode estar corrompido.\n{e}"
+        # GFZRNX: -satsys = satélite manipular. 'G' = GPS, 'R' = GLONASS
+        # Cria arquivo só de GPS
+        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{gps_saida}" -satsys G', shell=True, check=True)
+        
+        # Cria arquivo só de GLONASS
+        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{glonass_saida}" -satsys R', shell=True, check=True)
+        
+        # Cria arquivo GPS + GLONASS
+        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{gps_glonass_saida}" -satsys GR', shell=True, check=True)
+        
+        return f"✅ GFZRNX fatiou: {arquivo}"
+    except Exception as e:
+        return f"❌ Erro GFZRNX em {arquivo}: {e}"
 
-def separar_teqc(pasta_d_path, pasta_saida_path, teqc_path):
-    """Separa arquivos .o por constelação em paralelo."""
-    gps_dir = pasta_saida_path / "GPS"
-    glonass_dir = pasta_saida_path / "GLONASS"
-    gps_glonass_dir = pasta_saida_path / "GPS_GLONASS"
+def separar_constelacoes_paralelo(pasta_d_path, pasta_sep_path, gfzrnx_path):
+    gps_dir = pasta_sep_path / "GPS"
+    glonass_dir = pasta_sep_path / "GLONASS"
+    gps_glonass_dir = pasta_sep_path / "GPS_GLONASS"
+    
     os.makedirs(gps_dir, exist_ok=True)
     os.makedirs(glonass_dir, exist_ok=True)
     os.makedirs(gps_glonass_dir, exist_ok=True)
 
-    regex_o = re.compile(r".*\.\d{2}o$", re.IGNORECASE)
-    arquivos_o = [f for f in pasta_d_path.glob('*') if regex_o.match(f.name)]
+    # Coleta arquivos .o (Rinex 2) e .rnx (Rinex 3)
+    arquivos_obs = [
+        f for f in pasta_d_path.iterdir() 
+        if f.is_file() and (re.search(r"\.\d{2}[oO]$", f.name) or f.name.lower().endswith(".rnx"))
+    ]
     
-    if not arquivos_o:
-        print("❌ Nenhum arquivo .o encontrado para processamento de satélite!")
-        return
-    
-    print(f"Iniciando separação por satélite de {len(arquivos_o)} arquivos...")
-
     with concurrent.futures.ProcessPoolExecutor() as executor:
-        tarefas = {executor.submit(_processar_teqc, arquivo_o, teqc_path, gps_dir, glonass_dir, gps_glonass_dir): arquivo_o for arquivo_o in arquivos_o}
-        
+        tarefas = {executor.submit(_processar_gfzrnx, arq, gfzrnx_path, gps_dir, glonass_dir, gps_glonass_dir): arq for arq in arquivos_obs}
         for futuro in concurrent.futures.as_completed(tarefas):
             print(futuro.result())
 
 # --- FUNÇÃO 'compactar_por_lote' REMOVIDA ---
+
+def baixar_navegacao_brdc(ano, doy, pasta_destino_nav, max_tentativas=5):
+    """
+    Baixa o arquivo de navegação global Multi-GNSS (BRDC) do servidor IGS/BKG.
+    Exemplo de URL: https://igs.bkg.bund.de/root_ftp/IGS/BRDC/2024/001/BRDC00IGS_R_20240010000_01D_MN.rnx.gz
+    """
+    pasta_destino_nav = Path(pasta_destino_nav)
+    os.makedirs(pasta_destino_nav, exist_ok=True)
+    
+    ano_str = str(ano)
+    doy_str = str(doy).zfill(3) # Garante 3 dígitos (ex: 001, 045)
+    
+    nome_arquivo_gz = f"BRDC00IGS_R_{ano_str}{doy_str}0000_01D_MN.rnx.gz"
+    nome_arquivo_rnx = f"BRDC00IGS_R_{ano_str}{doy_str}0000_01D_MN.rnx"
+    
+    caminho_gz = pasta_destino_nav / nome_arquivo_gz
+    caminho_rnx = pasta_destino_nav / nome_arquivo_rnx
+    
+    # Se já existir, não baixa de novo
+    if caminho_rnx.exists():
+        print(f"✅ Navegação BRDC já existe para o dia {doy}: {nome_arquivo_rnx}")
+        return caminho_rnx
+        
+    url = f"https://igs.bkg.bund.de/root_ftp/IGS/BRDC/{ano_str}/{doy_str}/{nome_arquivo_gz}"
+
+    for tentativa in range(1, max_tentativas + 1):
+        print(f"🌐 Baixando navegação global BRDC do dia {doy}/{ano}...")
+    
+        try:
+            # Baixa com timeout de 15 segundos para evitar que o programa trave
+            with urllib.request.urlopen(url, timeout=15) as response, open(caminho_gz, 'wb') as out_file:
+                shutil.copyfileobj(response, out_file)
+            
+            # Extrai o arquivo
+            with gzip.open(caminho_gz, 'rb') as f_in:
+                with open(caminho_rnx, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+                    
+            os.remove(caminho_gz) # Apaga o .gz
+            print("✅ Navegação baixada e extraída com sucesso!")
+            return caminho_rnx
+            
+        except urllib.error.URLError as e:
+            print(f"   ⚠️ Falha na rede (Tentativa {tentativa}): {e}")
+            if caminho_gz.exists(): os.remove(caminho_gz) # Limpa download corrompido
+            
+            if tentativa < max_tentativas:
+                print("   ⏳ Aguardando 5 segundos antes de tentar novamente...")
+                time.sleep(5)
+            else:
+                print(f"   ❌ Erro definitivo ao baixar navegação do dia {doy}/{ano}.")
+                return None
+        except Exception as e:
+            print(f"   ❌ Erro inesperado no dia {doy}/{ano}: {e}")
+            if caminho_gz.exists(): os.remove(caminho_gz)
+            return None
+    
+def resolver_navegacao(pasta_d, pasta_nav):
+    """ Vasculha os arquivos descompactados e baixa as navegações necessárias. """
+    padrao_rnx2 = re.compile(r"(\d{3})[0-9a-zA-Z]\.(\d{2})[dDoO]")
+    padrao_rnx3 = re.compile(r"_(\d{4})(\d{3})\d{4}_")
+
+    dias_processados = set()
+
+    # Inspeciona os arquivos na pasta para descobrir os dias (Ano, DOY)
+    for arquivo in pasta_d.iterdir():
+        if not arquivo.is_file(): continue
+        
+        nome = arquivo.name
+        ano, doy = None, None
+        
+        match3 = padrao_rnx3.search(nome)
+        if match3:
+            ano = int(match3.group(1))
+            doy = int(match3.group(2))
+        else:
+            match2 = padrao_rnx2.search(nome)
+            if match2:
+                doy = int(match2.group(1))
+                ano = 2000 + int(match2.group(2))
+                
+        if ano and doy:
+            dias_processados.add((ano, doy))
+
+    if not dias_processados:
+        print("⚠️ Nenhum dia válido encontrado para baixar navegação.")
+        return
+
+    # Baixa a navegação para cada dia único encontrado
+    for ano, doy in sorted(list(dias_processados)):
+        baixar_navegacao_brdc(ano, doy, pasta_nav)
 
 def main():
     print("🔧 PROCESSAMENTO GNSS - SCRIPT OTIMIZADO (PARA RTKLIB)")
@@ -241,13 +364,13 @@ def main():
 
     # Validação dos executáveis
     CAMINHO_CRX2RNX = Path(config.CRX2RNX_PATH)
-    CAMINHO_TEQC = Path(config.TEQC_PATH)
+    CAMINHO_GFZRNX = Path(config.GFZRNX_PATH)
     
     if not CAMINHO_CRX2RNX.is_file():
-        print(f"❌ Erro: CRX2RNX.exe não encontrado em '{CAMINHO_CRX2RNX}'")
+        print(f"❌ Erro: CRX2RNX não encontrado em '{CAMINHO_CRX2RNX}'")
         return
-    if not CAMINHO_TEQC.is_file():
-        print(f"❌ Erro: teqc.exe não encontrado em '{CAMINHO_TEQC}'")
+    if not CAMINHO_GFZRNX.is_file():
+        print(f"❌ Erro: GFZRNX não encontrado em '{CAMINHO_GFZRNX}'")
         return
 
     # usa Pathlib para gerenciar pastas
@@ -262,11 +385,14 @@ def main():
     print_etapa("1/3 - Descompactando e separando arquivos .d")
     descompactar_zip(origem_zip, pasta_d, pasta_nav)
 
-    print_etapa("2/3 - Convertendo Hatanaka (.d) p/ RINEX (.o) [EM PARALELO]")
-    converter_crx2rnx(pasta_d, CAMINHO_CRX2RNX)
+    print_etapa("1.5/3 - Obtendo órbitas globais (Navegação BRDC)")
+    resolver_navegacao(pasta_d, pasta_nav)
 
-    print_etapa("3/3 - Separando arquivos por satélite (TEQC) [EM PARALELO]")
-    separar_teqc(pasta_d, pasta_sep, CAMINHO_TEQC)
+    print_etapa("2/3 - Convertendo Hatanaka (.d) p/ RINEX (.o) [EM PARALELO]")
+    converter_crx2rnx_paralelo(pasta_d, CAMINHO_CRX2RNX)
+
+    print_etapa("3/3 - Separando arquivos por satélite (GFZRNX) [EM PARALELO]")
+    separar_constelacoes_paralelo(pasta_d, pasta_sep, CAMINHO_GFZRNX)
 
     print_etapa("🎉 FINALIZAÇÃO")
     print(f"Processamento concluído! Seus arquivos RINEX estão prontos para o RTKLIB em:")
