@@ -303,7 +303,6 @@ def baixar_navegacao_brdc(ano, doy, pasta_destino_nav, max_tentativas=5):
                     shutil.copyfileobj(f_in, f_out)
                     
             os.remove(caminho_gz) # Apaga o .gz
-            print("✅ Navegação baixada e extraída com sucesso!")
             return caminho_rnx
             
         except urllib.error.URLError as e:
@@ -320,6 +319,8 @@ def baixar_navegacao_brdc(ano, doy, pasta_destino_nav, max_tentativas=5):
             print(f"   ❌ Erro inesperado no dia {doy}/{ano}: {e}")
             if caminho_gz.exists(): os.remove(caminho_gz)
             return None
+        
+    print("✅ Navegação baixada e extraída com sucesso!")
     
 def resolver_navegacao(pasta_d, pasta_nav):
     """ Vasculha os arquivos descompactados e baixa as navegações necessárias. """
