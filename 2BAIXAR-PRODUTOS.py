@@ -21,6 +21,7 @@ PATH_7ZIP = None
 caminhos_comuns = [
     r"C:\Program Files\7-Zip\7z.exe",
     r"C:\Program Files (x86)\7-Zip\7z.exe"
+    "/usr/bin/7z"
 ]
 for p in caminhos_comuns:
     if os.path.exists(p):
@@ -38,19 +39,39 @@ def gps_date_converter(year, doy):
     return gps_week, gps_dow, date_obj
 
 def extrair_info_arquivo(arquivo_path):
-    """Extrai Ano e DOY do nome do arquivo RINEX."""
+    """Extrai Ano e DOY (Dia do Ano) de arquivos RINEX 2 ou RINEX 3."""
+    nome = arquivo_path.name
+    
+    # 1. Tentar Padrão RINEX 3: _YYYYDDDhhmm_
+    # Exemplo: POLI00BRA_R_20240010000_01D_15S_MO.rnx
+    match3 = re.search(r"_(\d{4})(\d{3})\d{4}_", nome)
+    if match3:
+        ano = int(match3.group(1))
+        doy = int(match3.group(2))
+        return ano, doy
+        
+    # 2. Tentar Padrão RINEX 2: (4letras)(DOY)(Sessao).(Ano)o
+    # Exemplo: poli001a.24o
+    match2 = re.search(r"^[a-zA-Z0-9]{4}(\d{3})[a-zA-Z0-9]\.(\d{2})[oO]$", nome)
+    if match2:
+        doy = int(match2.group(1))
+        ano = 2000 + int(match2.group(2)) # Transforma '24' em '2024'
+        return ano, doy
+        
+    # 3. Tentar fallback usando a extensão para RINEX 2
     try:
-        extensao = arquivo_path.suffix
-        ano = int(extensao[1:3])
-        nome = arquivo_path.stem
-        # Regex para pegar os 3 dígitos do dia antes do último caractere
-        match = re.search(r'(\d{3}).$', nome)
-        if match:
-            doy = int(match.group(1))
-            return ano, doy
-        return None, None
+        extensao = arquivo_path.suffix.lower()
+        if re.match(r"\.\d{2}[oO]", extensao):
+            ano = 2000 + int(extensao[1:3])
+            # Pega 3 números seguidos de 1 letra perto do fim do nome base
+            match = re.search(r'(\d{3})[a-zA-Z0-9]$', arquivo_path.stem)
+            if match:
+                doy = int(match.group(1))
+                return ano, doy
     except:
-        return None, None
+        pass
+        
+    return None, None
     
 def descompactar_z_7zip(arquivo_z, pasta_destino):
     """Usa o 7-Zip para descompactar arquivos .Z antigos."""
@@ -142,8 +163,13 @@ def main():
     
     print("\n🔍 Varrendo todas as subpastas (GPS, GLONASS, GPS_GLONASS)")
 
-    # rglob procura recursivamente em todas as pastas
-    arquivos_o = list(pasta_rinex.rglob("*.*o"))
+    # Usa rglob para buscar recursivamente dentro de TODAS as subpastas
+    arquivos_o = []
+    for f in pasta_rinex.rglob("*"):
+        if f.is_file():
+            # Aceita RINEX 3 (.rnx) ou RINEX 2 (.YYo, ex: .24o)
+            if f.suffix.lower() == '.rnx' or re.match(r"\.\d{2}[oO]$", f.suffix):
+                arquivos_o.append(f)
     datas_processar = set()
 
     print("\n🔎 Identificando datas...")
@@ -251,19 +277,20 @@ def main():
     print("\n📦 Verificando arquivos compactados...")
 
     # 1. GZIP (nativo no Python)
-    for arq_gz in pasta_produtos.glob("*.gz"):
-        try:
-            with gzip.open(arq_gz, 'rb') as f_in:
-                with open(arq_gz.with_suffix(''), 'wb') as f_out:
-                    shutil.copyfileobj(f_in, f_out)
-            os.remove(arq_gz)
-            print(f"   🔨 GZIP Extraído: {arq_gz.name}")
-        except Exception as e:
-            print(f"   ❌ Erro no GZIP {arq_gz.name}: {e}")
+    for arq_gz in pasta_produtos.iterdir():
+        if arq_gz.is_file() and arq_gz.suffix.lower() == '.gz':
+            try:
+                with gzip.open(arq_gz, 'rb') as f_in:
+                    with open(arq_gz.with_suffix(''), 'wb') as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                os.remove(arq_gz)
+                print(f"   🔨 GZIP Extraído: {arq_gz.name}")
+            except Exception as e:
+                print(f"   ❌ Erro no GZIP {arq_gz.name}: {e}")
     
     # Tratamento para .Z (se houver ferramenta externa ou renomear)
     # 2. .Z (Unix Compress) - Usa 7-Zip se disponível
-    z_files = list(pasta_produtos.glob("*.Z"))
+    z_files = [arq for arq in pasta_produtos.iterdir() if arq.is_file() and arq.suffix.lower() == '.z']
     if z_files:
         if PATH_7ZIP:
             print(f"   ⚙️ Usando 7-Zip para {len(z_files)} arquivos .Z...")
