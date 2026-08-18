@@ -13,6 +13,7 @@ Os dados são coletados pelo serviço RBMC do IBGE, e processados através da fe
 - [IBGE-RBMC](#ibge-rbmc)
 - [Obtenção das efemérides](#obtenção-das-efemérides)
 - [Processamento pelo RTKlib](#processamento-pelo-rtklib)
+- [Como utilizar](#como-utilizar)
 
 ---
 ## IBGE-RBMC
@@ -48,3 +49,38 @@ Portanto, no código ```2BAIXAR-PRODUTOS.py```, é realizada a obtenção autom�
 Foi optado por se obter os dados através do site do [IGN - Institut National de L'information Géographique et Forestière](https://webigs-rf.ign.fr/), o qual é uma das fontes oficiais de distribuição de informações e produtos do [IGS - International GNSS Service](https://igs.org/), sendo acessado forma fácil pelo código.
 
 ## Processamento pelo RTKlib
+
+## Como utilizar
+
+Primeiro, após clonar o repositório, deve ser criado um arquivo ```config.py``` na pasta principal, de forma a definir os caminhos dos programas a serem utilizados no código.
+
+A maioria dos programas está presente na pasta ```Programas```, de ondde os seus caminhos podem ser obtidos diretamente. 
+Obs.: Os programas presentes nessa pasta são executáveis, não sendo necessário sua instalação. Verificar sempre a instalação correta de todas as dependências necessárias. 
+
+O arquivo ```config.py``` deve conter a seguinte arquitetura:
+
+```python
+import os
+
+# Definição global de caminhos e parâmetros
+
+CRX2RNX_PATH = r"/exemplo_de_caminho_de_linux"
+TEQC_PATH = r"C:\exemplo_de_caminho_de_windows"
+RNX2RTKP_PATH = r"preencher"
+GFZRNX_PATH = r"preencher"
+
+IBGE_ZIP = r"preencher"
+PASTA_BASE = r"Caminho para uma pasta base onde o código vai depositar os dados processados"
+
+CONFIG_FILE = r"caminho para o arquivo ppp-static.conf do rtklib /GNSS/ppp-static.conf"
+```
+
+Após a criação adequada do arquivo de configuração e verificação das dependências, apenas é necessário rodar o ```run_all.py``` pelo seguinte comando:
+
+```bash
+python3 run_all.py
+```
+
+Também é possível rodar as etapas individualmente com o mesmo comando, trocando o nome do arquivo desejado.
+
+Obs.: Este projeto utiliza **Python 3.14.4** Sua instalação é imperativa para a utilização deste projeto.
