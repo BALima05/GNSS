@@ -54,7 +54,7 @@ Foi optado por se obter os dados através do site do [IGN - Institut National de
 
 Primeiro, após clonar o repositório, deve ser criado um arquivo ```config.py``` na pasta principal, de forma a definir os caminhos dos programas a serem utilizados no código.
 
-A maioria dos programas está presente na pasta ```Programas```, de ondde os seus caminhos podem ser obtidos diretamente. 
+A maioria dos programas está presente na pasta ```Programas```, de onde os seus caminhos podem ser obtidos diretamente. 
 Obs.: Os programas presentes nessa pasta são executáveis, não sendo necessário sua instalação. Verificar sempre a instalação correta de todas as dependências necessárias. 
 
 O arquivo ```config.py``` deve conter a seguinte arquitetura:
@@ -75,7 +75,7 @@ PASTA_BASE = r"Caminho para uma pasta base onde o código vai depositar os dados
 CONFIG_FILE = r"caminho para o arquivo ppp-static.conf do rtklib /GNSS/ppp-static.conf"
 ```
 
-Após a criação adequada do arquivo de configuração e verificação das dependências, apenas é necessário rodar o ```run_all.py``` pelo seguinte comando:
+Após a criação adequada do arquivo de configuração e verificação das dependências, é necessário apenas rodar o ```run_all.py``` pelo seguinte comando:
 
 ```bash
 python3 run_all.py
