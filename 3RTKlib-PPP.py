@@ -7,6 +7,72 @@ import utils
 import re
 import datetime
 
+def detectar_sistemas(arquivo_obs):
+    """
+    Lê o cabeçalho do RINEX de observação e retorna o conjunto de sistemas
+    presentes (letras: G=GPS, R=GLONASS, E=Galileo, C=BeiDou, J=QZSS, I=IRNSS, S=SBAS).
+    Funciona tanto para RINEX 3.x ("SYS / # / OBS TYPES") quanto RINEX 2.x
+    (usa o indicador de sistema da linha "RINEX VERSION / TYPE").
+    """
+    sistemas = set()
+    try:
+        with open(arquivo_obs, 'r', errors='ignore') as f:
+            for _ in range(300):  # cabeçalho não deve passar disso
+                linha = f.readline()
+                if not linha:
+                    break
+                if "END OF HEADER" in linha:
+                    break
+                if "RINEX VERSION / TYPE" in linha:
+                    # coluna ~41 (index 40) traz o indicador de sistema: G/R/E/J/C/I/S/M(mixed)
+                    indicador = linha[40:41].strip().upper()
+                    if indicador and indicador != 'M':
+                        sistemas.add(indicador)
+                elif "SYS / # / OBS TYPES" in linha:
+                    # RINEX 3: primeiro caractere da linha é o código do sistema
+                    codigo = linha[0:1].strip().upper()
+                    if codigo:
+                        sistemas.add(codigo)
+    except Exception as e:
+        print(f"⚠️ Não consegui ler cabeçalho de {arquivo_obs.name} para detectar sistemas: {e}")
+ 
+    return sistemas
+ 
+ 
+def navsys_bitmask(sistemas):
+    """Converte o conjunto de sistemas detectados no valor pos1-navsys do RTKLIB."""
+    mapa = {'G': 1, 'S': 2, 'R': 4, 'E': 8, 'J': 16, 'C': 32, 'I': 64}
+    valor = 0
+    for s in sistemas:
+        valor |= mapa.get(s, 0)
+    # Fallback de segurança: se não detectou nada, mantém GPS+GLONASS (comportamento antigo)
+    return valor if valor > 0 else 5
+ 
+ 
+def gerar_config_com_navsys(config_file, navsys_valor, pasta_saida, nome_base):
+    """
+    Cria uma cópia temporária do .conf substituindo (ou adicionando) a linha
+    pos1-navsys pelo valor detectado automaticamente para este arquivo.
+    """
+    config_file = Path(config_file)
+    conf_temp = Path(pasta_saida) / f"_tmp_{nome_base}.conf"
+ 
+    linha_encontrada = False
+    with open(config_file, 'r', encoding='utf-8', errors='ignore') as f_in:
+        linhas = f_in.readlines()
+ 
+    with open(conf_temp, 'w', encoding='utf-8') as f_out:
+        for linha in linhas:
+            if linha.strip().startswith('pos1-navsys'):
+                f_out.write(f"pos1-navsys={navsys_valor}\n")
+                linha_encontrada = True
+            else:
+                f_out.write(linha)
+        if not linha_encontrada:
+            f_out.write(f"pos1-navsys={navsys_valor}\n")
+ 
+    return conf_temp
+
 def gps_date_converter(year, doy):
     """Converte o ano e DOY para a semana GPS (usada nos produtos IGS)."""
     full_year = 2000 + int(year) if int(year) < 100 else int(year)
@@ -28,29 +94,57 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
         arquivo_pos = pasta_saida / arquivo_obs.with_suffix('.pos').name
         
         # Obtenção dos arquivos nav e produtos
-        nav_files = list(pasta_nav.glob("*.[0-9][0-9]n")) + \
-                    list(pasta_nav.glob("*.[0-9][0-9]p")) + \
-                    list(pasta_nav.glob("*.[0-9][0-9]g")) + \
-                    list(pasta_nav.glob("*.nav"))
+        nav_files_brutos = list(pasta_nav.glob("*.[0-9][0-9]n")) + \
+                           list(pasta_nav.glob("*.[0-9][0-9]p")) + \
+                           list(pasta_nav.glob("*.[0-9][0-9]g")) + \
+                           list(pasta_nav.glob("*.nav")) + \
+                           list(pasta_nav.glob("*MN.rnx"))
+                           
+        nav_files = []
+        for nav in nav_files_brutos:
+            # RTKLIB ignora navegação terminada em .rnx. Vamos forçar para .nav
+            if nav.suffix.lower() == '.rnx':
+                novo_nav = nav.with_suffix('.nav')
+                nav.rename(novo_nav) # Renomeia fisicamente no HD
+                nav_files.append(novo_nav)
+            else:
+                nav_files.append(nav)
         
         arquivos_sp3 = list(pasta_produtos.glob("*.[sS][pP]3")) + list(pasta_produtos.glob("*.eph"))
         arquivos_clk = list(pasta_produtos.glob("*.[cC][lL][kK]"))
 
-        match = re.search(r'(\d{3})[a-zA-Z0-9]?\.(\d{2})[oO]', arquivo_obs.name)
-        if match:
-            doy_str = match.group(1)
-            ano_str = match.group(2)
-            wk, dw, full_year, doy_int = gps_date_converter(ano_str, doy_str)
+        # --- NOVA LÓGICA DE EXTRAÇÃO DE DATA ---
+        ano, doy_int = None, None
+        nome_arq = arquivo_obs.name
+        
+        # Tenta padrão RINEX 3 (_YYYYDDDhhmm_)
+        match3 = re.search(r"_(\d{4})(\d{3})\d{4}_", nome_arq)
+        if match3:
+            ano = int(match3.group(1))
+            doy_int = int(match3.group(2))
+        else:
+            # Tenta padrão RINEX 2 (.YYo)
+            match2 = re.search(r"^[a-zA-Z0-9]{4}(\d{3})[a-zA-Z0-9]\.(\d{2})[oO]$", nome_arq)
+            if match2:
+                doy_int = int(match2.group(1))
+                ano = 2000 + int(match2.group(2))
+
+        if ano and doy_int:
+            doy_str = f"{doy_int:03d}"
+            wk, dw, full_year, _ = gps_date_converter(ano % 100, doy_int) # Passa apenas os 2 últimos dígitos do ano
             
             # Filtra os de Navegação que contenham o mesmo DOY no nome
             nav_files = [f for f in nav_files if doy_str in f.name]
             
-            # Filtra SP3 e CLK com base na data (Padrão longo: YYYYDDD ou Curto: igsWWWD)
+            # Filtra SP3 e CLK com base na data
             padrao_longo = f"{full_year}{doy_str}"
             padrao_curto = f"igs{wk}{dw}"
             
             arquivos_sp3 = [f for f in arquivos_sp3 if padrao_longo in f.name or padrao_curto in f.name]
             arquivos_clk = [f for f in arquivos_clk if padrao_longo in f.name or padrao_curto in f.name]
+        else:
+            return f"⚠️ Pulei {arquivo_obs.name}: Não consegui identificar a data no nome do arquivo."
+        # ---------------------------------------
 
         if not arquivos_sp3:
             return f"⚠️ Pulei {arquivo_obs.name}: Faltam arquivos .sp3 (Orbitas)."
@@ -58,11 +152,25 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
             return f"⚠️ Pulei {arquivo_obs.name}: Faltam arquivos .clk (Relógios)."
         if not nav_files:
             return f"⚠️ Pulei {arquivo_obs.name}: Faltam arquivos de navegação (.n, .p, .g, .nav)."
+
+        # --- DETECÇÃO AUTOMÁTICA DE NAVSYS ---
+        # lê o cabeçalho do arquivo de observação pra saber quais
+        # sistemas (GPS/GLONASS/...) existem nele, gerando um .conf
+        # temporário com o pos1-navsys correto. Isso evita usar
+        # navsys=GPS+GLONASS num arquivo que só tem GLONASS ou vice-versa
+        sistemas_detectados = detectar_sistemas(arquivo_obs)
+        navsys_valor = navsys_bitmask(sistemas_detectados)
+        config_efetivo = gerar_config_com_navsys(
+            config_file, navsys_valor, pasta_saida, arquivo_obs.stem
+        )
+        print(f"🛰️  {arquivo_obs.name}: sistemas={sorted(sistemas_detectados) or '??'} -> navsys={navsys_valor}")
             
         # Monta o comando
         cmd = [
             str(rnx2rtkp_path),
-            '-k', str(config_file),
+            '-k', str(config_efetivo),
+            '-x', '3',  # Nível 3 de Trace (Gera arquivo .trace detalhado)
+            '-y', '3',  # Nível 3 de Status (Gera arquivo .stat)
             '-o', str(arquivo_pos),
             str(arquivo_obs)
         ]
@@ -78,6 +186,13 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
 
         # Executa capturando TUDO
         result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            return (
+                f"Falha no RTKLIB para {arquivo_obs.name}\n"
+                f"stderr: {result.stderr}\n"
+                f"stdout: {result.stdout}"
+            )
 
         # --- Verificar se o arquivo EXISTE e tem CONTEÚDO ---
         if arquivo_pos.exists() and arquivo_pos.stat().st_size > 0:
@@ -149,7 +264,11 @@ def main():
 
     # --- PROCESSAMENTO ---
     print("\n🔍 Varrendo todas as subpastas (GPS, GLONASS, GPS_GLONASS)")
-    arquivos_o = list(path_rinex_obs.rglob("*.*o"))
+    arquivos_o = [
+        arquivo
+        for arquivo in path_rinex_obs.rglob("*")
+        if arquivo.is_file() and arquivo.suffix.lower().endswith(("o", "rnx"))
+    ]
     
     if not arquivos_o:
         print("Nenhum arquivo de observação encontrado.")
