@@ -35,10 +35,10 @@ def detectar_sistemas(arquivo_obs):
                         sistemas.add(codigo)
     except Exception as e:
         print(f"⚠️ Não consegui ler cabeçalho de {arquivo_obs.name} para detectar sistemas: {e}")
- 
+
     return sistemas
- 
- 
+
+
 def navsys_bitmask(sistemas):
     """Converte o conjunto de sistemas detectados no valor pos1-navsys do RTKLIB."""
     mapa = {'G': 1, 'S': 2, 'R': 4, 'E': 8, 'J': 16, 'C': 32, 'I': 64}
@@ -47,8 +47,8 @@ def navsys_bitmask(sistemas):
         valor |= mapa.get(s, 0)
     # Fallback de segurança: se não detectou nada, mantém GPS+GLONASS (comportamento antigo)
     return valor if valor > 0 else 5
- 
- 
+
+
 def gerar_config_com_navsys(config_file, navsys_valor, pasta_saida, nome_base):
     """
     Cria uma cópia temporária do .conf substituindo (ou adicionando) a linha
@@ -56,11 +56,11 @@ def gerar_config_com_navsys(config_file, navsys_valor, pasta_saida, nome_base):
     """
     config_file = Path(config_file)
     conf_temp = Path(pasta_saida) / f"_tmp_{nome_base}.conf"
- 
+
     linha_encontrada = False
     with open(config_file, 'r', encoding='utf-8', errors='ignore') as f_in:
         linhas = f_in.readlines()
- 
+
     with open(conf_temp, 'w', encoding='utf-8') as f_out:
         for linha in linhas:
             if linha.strip().startswith('pos1-navsys'):
@@ -70,8 +70,9 @@ def gerar_config_com_navsys(config_file, navsys_valor, pasta_saida, nome_base):
                 f_out.write(linha)
         if not linha_encontrada:
             f_out.write(f"pos1-navsys={navsys_valor}\n")
- 
+
     return conf_temp
+
 
 def gps_date_converter(year, doy):
     """Converte o ano e DOY para a semana GPS (usada nos produtos IGS)."""
@@ -152,7 +153,7 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
             return f"⚠️ Pulei {arquivo_obs.name}: Faltam arquivos .clk (Relógios)."
         if not nav_files:
             return f"⚠️ Pulei {arquivo_obs.name}: Faltam arquivos de navegação (.n, .p, .g, .nav)."
-
+            
         # --- DETECÇÃO AUTOMÁTICA DE NAVSYS ---
         # lê o cabeçalho do arquivo de observação pra saber quais
         # sistemas (GPS/GLONASS/...) existem nele, gerando um .conf
@@ -164,7 +165,7 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
             config_file, navsys_valor, pasta_saida, arquivo_obs.stem
         )
         print(f"🛰️  {arquivo_obs.name}: sistemas={sorted(sistemas_detectados) or '??'} -> navsys={navsys_valor}")
-            
+
         # Monta o comando
         cmd = [
             str(rnx2rtkp_path),
@@ -276,22 +277,17 @@ def main():
 
     print(f"Iniciando PPP para {len(arquivos_o)} arquivos...")
     
-    # Processamento Paralelo (PPP consome CPU, cuidado com muitos núcleos)
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        tarefas = {
-            executor.submit(
-                processar_ppp_rtklib, 
-                obs, 
-                path_produtos,
-                path_nav,
-                path_config, 
-                path_rnx2rtkp, 
-                path_saida
-            ): obs for obs in arquivos_o
-        }
-        
-        for futuro in concurrent.futures.as_completed(tarefas):
-            print(futuro.result())
+    # Processamento sequencial: um arquivo por vez
+    for obs in arquivos_o:
+        resultado = processar_ppp_rtklib(
+           obs,
+           path_produtos,
+            path_nav,
+            path_config,
+            path_rnx2rtkp,
+            path_saida
+        )
+        print(resultado)
 
     print(f"\n🏁 Processamento finalizado. Verifique a pasta: {path_saida}")
 
