@@ -1,6 +1,11 @@
 import os
+
+os.environ.pop("LD_LIBRARY_PATH", None)
+
 import math
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from pathlib import Path
@@ -180,9 +185,13 @@ def main():
     arq_glo = [f for f in arquivos_pos if f.name.startswith("GLONASS_")]
     arq_gps_glo = [f for f in arquivos_pos if f.name.startswith("GPS_GLONASS_")]
 
-    if arq_gps: processar_e_plotar(arq_gps, "GPS", pasta_resultados)
-    if arq_glo: processar_e_plotar(arq_glo, "GLONASS", pasta_resultados)
-    if arq_gps_glo: processar_e_plotar(arq_gps_glo, "GPS_GLONASS", pasta_resultados)
+    for nome_const, lista_arq in [("GPS", arq_gps), ("GLONASS", arq_glo), ("GPS_GLONASS", arq_gps_glo)]:
+        if not lista_arq:
+            continue
+        try:
+            processar_e_plotar(lista_arq, nome_const, pasta_resultados)
+        except Exception as e:
+            print(f"💥 Falha ao processar/plotar {nome_const}: {e}")
 
     print("\n🎉 Séries temporais geodésicas concluídas!")
 
