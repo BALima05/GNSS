@@ -66,13 +66,19 @@ import os
 
 CRX2RNX_PATH = r"/exemplo_de_caminho_de_linux"
 TEQC_PATH = r"C:\exemplo_de_caminho_de_windows"
-RNX2RTKP_PATH = r"preencher"
+RNX2RTKP_PATH = r"/usr/bin/rnx2rtkp"
 GFZRNX_PATH = r"preencher"
 
 IBGE_ZIP = r"preencher"
 PASTA_BASE = r"Caminho para uma pasta base onde o código vai depositar os dados processados"
 
 CONFIG_FILE = r"caminho para o arquivo ppp-static.conf do rtklib /GNSS/ppp-static.conf"
+```
+
+Também é necessário instalar o RTKLIB nativamente caso esteja utilizando um sistema Linux, podendo ser instalado pelo seguinte comando:
+
+```bash
+sudo apt update && sudo apt install rtklib
 ```
 
 Após a criação adequada do arquivo de configuração e verificação das dependências, é necessário apenas rodar o ```run_all.py``` pelo seguinte comando:
