@@ -122,8 +122,13 @@ def processar_e_plotar(arquivos, constelacao, pasta_resultados):
 
     estilo = {'marker': 'o', 'markersize': 5, 'linewidth': 1.5, 'alpha': 0.8}
 
+    LIMITE_NORTE = 100
+    LIMITE_LESTE = 100
+    LIMITE_ALTITUDE = 200
+
     ax1.plot(df_resumo['Data'], df_resumo['dN (mm)'], color='tab:blue', **estilo)
     ax1.set_ylabel('Norte (mm)', fontweight='bold')
+    ax1.set_ylim(-LIMITE_NORTE, LIMITE_NORTE)         ## Define os limites do eixo para a Latitude
     ax1.axhline(0, color='black', linestyle='-', linewidth=1, alpha=0.5)
 
     # Caixa de Estatísticas no Gráfico
@@ -141,11 +146,13 @@ def processar_e_plotar(arquivos, constelacao, pasta_resultados):
 
     ax2.plot(df_resumo['Data'], df_resumo['dE (mm)'], color='tab:orange', **estilo)
     ax2.set_ylabel('Leste (mm)', fontweight='bold')
+    ax2.set_ylim(-LIMITE_LESTE, LIMITE_LESTE)         ## Define os limites do eixo para a Longitude
     ax2.axhline(0, color='black', linestyle='-', linewidth=1, alpha=0.5)
 
     ax3.plot(df_resumo['Data'], df_resumo['dU (mm)'], color='tab:green', **estilo)
     ax3.set_ylabel('Altitude (mm)', fontweight='bold')
     ax3.set_xlabel('Data da Observação', fontweight='bold')
+    ax3.set_ylim(-LIMITE_ALTITUDE, LIMITE_ALTITUDE)        ## Define os limites do eixo para a Altitude
     ax3.axhline(0, color='black', linestyle='-', linewidth=1, alpha=0.5)
 
     ax3.xaxis.set_major_formatter(mdates.DateFormatter('%d/%b/%Y'))
