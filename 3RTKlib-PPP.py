@@ -204,23 +204,30 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
             cmd.append(str(clk))
 
         # Executa capturando TUDO
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True)
 
-        if result.returncode != 0:
-            return (
-                f"Falha no RTKLIB para {arquivo_obs.name}\n"
-                f"stderr: {result.stderr}\n"
-                f"stdout: {result.stdout}"
-            )
+            if result.returncode != 0:
+                return (
+                    f"Falha no RTKLIB para {arquivo_obs.name}\n"
+                    f"stderr: {result.stderr}\n"
+                    f"stdout: {result.stdout}"
+                )
 
-        # --- Verificar se o arquivo EXISTE e tem CONTEÚDO ---
-        if arquivo_pos.exists() and arquivo_pos.stat().st_size > 0:
-            return f"✅ PPP Sucesso: {arquivo_pos.name} (Tamanho: {arquivo_pos.stat().st_size/1024:.1f} KB)"
-        else:
-            # Se o arquivo não foi criado, mostra o erro que o RTKLIB cuspiu
-            return (f"❌ Falha {arquivo_obs.name} (Arquivo vazio ou não criado).\n"
-                    f"   Log RTKLIB: {result.stderr}\n"
-                    f"   Output: {result.stdout}")
+            # --- Verificar se o arquivo EXISTE e tem CONTEÚDO ---
+            if arquivo_pos.exists() and arquivo_pos.stat().st_size > 0:
+                return f"✅ PPP Sucesso: {arquivo_pos.name} (Tamanho: {arquivo_pos.stat().st_size/1024:.1f} KB)"
+            else:
+                # Se o arquivo não foi criado, mostra o erro que o RTKLIB cuspiu
+                return (f"❌ Falha {arquivo_obs.name} (Arquivo vazio ou não criado).\n"
+                        f"   Log RTKLIB: {result.stderr}\n"
+                        f"   Output: {result.stdout}")
+        finally:
+            # Limpeza do arquivo de configuração temporário
+            try:
+                config_efetivo.unlink(missing_ok=True)
+            except Exception as e:
+                print(f"⚠️ Não foi possível remover conf temporário {config_efetivo}: {e}")
 
     except Exception as e:
         return f"💥 Erro de execução processando {arquivo_obs.name}: {e}"
