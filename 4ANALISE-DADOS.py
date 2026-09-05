@@ -1,6 +1,11 @@
 import os
+
+os.environ.pop("LD_LIBRARY_PATH", None)
+
 import math
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from pathlib import Path
@@ -117,8 +122,13 @@ def processar_e_plotar(arquivos, constelacao, pasta_resultados):
 
     estilo = {'marker': 'o', 'markersize': 5, 'linewidth': 1.5, 'alpha': 0.8}
 
+    LIMITE_NORTE = 100
+    LIMITE_LESTE = 100
+    LIMITE_ALTITUDE = 200
+
     ax1.plot(df_resumo['Data'], df_resumo['dN (mm)'], color='tab:blue', **estilo)
     ax1.set_ylabel('Norte (mm)', fontweight='bold')
+    ax1.set_ylim(-LIMITE_NORTE, LIMITE_NORTE)         ## Define os limites do eixo para a Latitude
     ax1.axhline(0, color='black', linestyle='-', linewidth=1, alpha=0.5)
 
     # Caixa de Estatísticas no Gráfico
@@ -136,11 +146,13 @@ def processar_e_plotar(arquivos, constelacao, pasta_resultados):
 
     ax2.plot(df_resumo['Data'], df_resumo['dE (mm)'], color='tab:orange', **estilo)
     ax2.set_ylabel('Leste (mm)', fontweight='bold')
+    ax2.set_ylim(-LIMITE_LESTE, LIMITE_LESTE)         ## Define os limites do eixo para a Longitude
     ax2.axhline(0, color='black', linestyle='-', linewidth=1, alpha=0.5)
 
     ax3.plot(df_resumo['Data'], df_resumo['dU (mm)'], color='tab:green', **estilo)
     ax3.set_ylabel('Altitude (mm)', fontweight='bold')
     ax3.set_xlabel('Data da Observação', fontweight='bold')
+    ax3.set_ylim(-LIMITE_ALTITUDE, LIMITE_ALTITUDE)        ## Define os limites do eixo para a Altitude
     ax3.axhline(0, color='black', linestyle='-', linewidth=1, alpha=0.5)
 
     ax3.xaxis.set_major_formatter(mdates.DateFormatter('%d/%b/%Y'))
@@ -180,9 +192,13 @@ def main():
     arq_glo = [f for f in arquivos_pos if f.name.startswith("GLONASS_")]
     arq_gps_glo = [f for f in arquivos_pos if f.name.startswith("GPS_GLONASS_")]
 
-    if arq_gps: processar_e_plotar(arq_gps, "GPS", pasta_resultados)
-    if arq_glo: processar_e_plotar(arq_glo, "GLONASS", pasta_resultados)
-    if arq_gps_glo: processar_e_plotar(arq_gps_glo, "GPS_GLONASS", pasta_resultados)
+    for nome_const, lista_arq in [("GPS", arq_gps), ("GLONASS", arq_glo), ("GPS_GLONASS", arq_gps_glo)]:
+        if not lista_arq:
+            continue
+        try:
+            processar_e_plotar(lista_arq, nome_const, pasta_resultados)
+        except Exception as e:
+            print(f"💥 Falha ao processar/plotar {nome_const}: {e}")
 
     print("\n🎉 Séries temporais geodésicas concluídas!")
 
