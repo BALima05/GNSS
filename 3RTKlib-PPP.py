@@ -131,6 +131,13 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
         
         arquivos_sp3 = list(pasta_produtos.glob("*.[sS][pP]3")) + list(pasta_produtos.glob("*.eph"))
         arquivos_clk = list(pasta_produtos.glob("*.[cC][lL][kK]"))
+        # Arquivos de bias/DCB (corrige o viés P1-C1 entre código C/A e código P,
+        # relevante quando o receptor não rastreia P1 mas os produtos precisos
+        # (SP3/CLK) foram gerados com base em P1/P2). Aceita tanto arquivos
+        # datados (ex.: COD0MGXFIN_20240050000_01D_01D_OSB.BIA) quanto arquivos
+        # estáticos genéricos do IGS/CODE (ex.: P1C1_ALL.DCB, P1P2_ALL.DCB), que
+        # não têm data no nome e por isso são sempre incluídos quando presentes.
+        arquivos_bias = list(pasta_produtos.glob("*.[bB][iI][aA]")) + list(pasta_produtos.glob("*.[dD][cC][bB]"))
 
         # --- LÓGICA DE EXTRAÇÃO DE DATA (comparação EXATA, não substring) ---
         # IMPORTANTE: usar "doy_str in nome_arquivo" é perigoso, porque o DOY
@@ -160,6 +167,14 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
             arquivos_clk = [
                 f for f in arquivos_clk
                 if extrair_ano_doy(f.name) == (ano, doy_int) or padrao_curto in f.name
+            ]
+
+            # Bias/DCB: se o arquivo tem data no nome, exige data exata (igual a nav/sp3/clk).
+            # Se não tem data (arquivo genérico do tipo P1C1_ALL.DCB), mantém sempre.
+            arquivos_bias = [
+                f for f in arquivos_bias
+                if extrair_ano_doy(f.name) == (ano, doy_int)
+                or extrair_ano_doy(f.name) == (None, None)
             ]
         else:
             return f"⚠️ Pulei {arquivo_obs.name}: Não consegui identificar a data no nome do arquivo."
@@ -202,6 +217,14 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
             cmd.append(str(sp3))
         for clk in arquivos_clk:
             cmd.append(str(clk))
+        for bias in arquivos_bias:  # Opcional: corrige DCB P1-C1 quando disponível
+            cmd.append(str(bias))
+
+        if arquivos_bias:
+            print(f"   ↳ Bias/DCB aplicado: {[b.name for b in arquivos_bias]}")
+        else:
+            print(f"   ⚠️ Nenhum arquivo de bias/DCB encontrado para {arquivo_obs.name} "
+                  f"(ok se o receptor rastreia P1/P2 nativamente, senão pode inserir viés de código)")
 
         # Executa capturando TUDO
         try:

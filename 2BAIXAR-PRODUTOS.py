@@ -104,9 +104,14 @@ def encontrar_melhor_arquivo(lista_arquivos_server, ano, doy, tipo):
     # Busca por *YYYYDDD*ORB.SP3*
     if tipo == 'sp3':
         padrao_longo = f"*_{ano_str}{doy_str}*ORB.SP3*" 
-    else: # clk
+    elif tipo == 'clk':
         # Forçar o "30S" no nome do arquivo
         padrao_longo = f"*_{ano_str}{doy_str}*30S_CLK.CLK*"
+    else:  # bias/DCB
+        # Arquivos de Bias (OSB) do IGS/MGEX, ex.: GRG0OPSFIN_20240050000_01D_01D_OSB.BIA.gz
+        # ou COD0MGXFIN_20240050000_01D_01D_OSB.BIA.gz. Não força "30S"/"05M" pois
+        # o campo de amostragem nesse tipo de produto costuma ser "01D" (1 valor por dia).
+        padrao_longo = f"*_{ano_str}{doy_str}*OSB.BIA*"
 
     # Padrão 2: Nome Curto (Legado)
     # Ex: igsWWWD.sp3.Z (Isso é difícil de montar aqui sem a semana, 
@@ -241,6 +246,15 @@ def main():
                     # Tenta fallback nome curto
                     curto_clk = f"igs{wk}{dw}.clk.Z" # ou clk_30s.Z
                     if curto_clk in arquivos_no_server: alvos_encontrados.append(curto_clk)
+
+                # 3. Busca BIAS/DCB (corrige o viés P1-C1, relevante quando o
+                # receptor não rastreia P1 nativamente). Não é obrigatório:
+                # nem toda estação/AC publica esse produto para todo dia.
+                arquivo_bias = encontrar_melhor_arquivo(arquivos_no_server, full_year, doy, 'bias')
+                if arquivo_bias:
+                    alvos_encontrados.append(arquivo_bias)
+                else:
+                    print(f"   ⚠️ BIAS/DCB não encontrado para {dt.date()} (opcional, seguindo sem ele)")
 
                 # --- DOWNLOAD ---
                 for arquivo_remoto in alvos_encontrados:
