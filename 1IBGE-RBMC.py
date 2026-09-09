@@ -231,13 +231,13 @@ def _processar_gfzrnx(arquivo_o_path, gfzrnx_path, gps_dir, glonass_dir, gps_glo
         
         # GFZRNX: -satsys = satélite manipular. 'G' = GPS, 'R' = GLONASS
         # Cria arquivo só de GPS
-        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{gps_saida}" -satsys G', shell=True, check=True)
+        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{gps_saida}" -satsys G -vo 2.11', shell=True, check=True)
         
         # Cria arquivo só de GLONASS
-        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{glonass_saida}" -satsys R', shell=True, check=True)
+        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{glonass_saida}" -satsys R -vo 2.11', shell=True, check=True)
         
         # Cria arquivo GPS + GLONASS
-        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{gps_glonass_saida}" -satsys GR', shell=True, check=True)
+        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{gps_glonass_saida}" -satsys GR -vo 2.11', shell=True, check=True)
         
         return f"✅ GFZRNX fatiou: {arquivo}"
     except Exception as e:

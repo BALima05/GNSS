@@ -85,7 +85,7 @@ def extrair_ano_doy(nome_arq):
     if match3:
         return int(match3.group(1)), int(match3.group(2))
 
-    match2 = re.search(r"^[a-zA-Z0-9]{4}(\d{3})[a-zA-Z0-9]\.(\d{2})[oO]$", nome_arq)
+    match2 = re.search(r"[a-zA-Z0-9]{4}(\d{3})[a-zA-Z0-9]\.(\d{2})[oOnNgGpP]$", nome_arq)
     if match2:
         return 2000 + int(match2.group(2)), int(match2.group(1))
 
@@ -139,7 +139,7 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
         # não têm data no nome e por isso são sempre incluídos quando presentes.
         arquivos_bias = list(pasta_produtos.glob("*.[bB][iI][aA]")) + list(pasta_produtos.glob("*.[dD][cC][bB]"))
 
-        # --- LÓGICA DE EXTRAÇÃO DE DATA (comparação EXATA, não substring) ---
+        # --- LÓGICA DE EXTRAÇÃO DE DATA  ---
         # IMPORTANTE: usar "doy_str in nome_arquivo" é perigoso, porque o DOY
         # pode coincidir por acaso com parte do ANO no nome do arquivo
         # (ex.: dia 024 é substring de "2024"), fazendo o filtro pegar
@@ -150,34 +150,30 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
 
         if ano and doy_int:
             wk, dw, full_year, _ = gps_date_converter(ano % 100, doy_int)
-
-            # Filtra os de Navegação comparando (ano, doy) exatamente
-            nav_files = [
-                f for f in nav_files
-                if extrair_ano_doy(f.name) == (ano, doy_int)
+            
+            # 1. Calcular o dia atual, anterior e próximo para não quebrar a interpolação SP3
+            data_atual = datetime.datetime(full_year, 1, 1) + datetime.timedelta(days=doy_int - 1)
+            d_ant = data_atual - datetime.timedelta(days=1)
+            d_prox = data_atual + datetime.timedelta(days=1)
+            
+            doys_validos = [
+                (full_year, doy_int),
+                (d_ant.year, d_ant.timetuple().tm_yday),
+                (d_prox.year, d_prox.timetuple().tm_yday)
             ]
 
-            # Filtra SP3 e CLK: aceita tanto o nome-longo (ano+doy exatos)
-            # quanto o padrão curto de nome de produto IGS por semana GPS (igsWWWD)
+            # Filtra NAV apenas para o dia correto
+            nav_files = [f for f in nav_files if extrair_ano_doy(f.name) == (ano, doy_int)]
+
+            # Filtra SP3 e CLK permitindo D-1, D e D+1
             padrao_curto = f"igs{wk}{dw}"
-            arquivos_sp3 = [
-                f for f in arquivos_sp3
-                if extrair_ano_doy(f.name) == (ano, doy_int) or padrao_curto in f.name
-            ]
-            arquivos_clk = [
-                f for f in arquivos_clk
-                if extrair_ano_doy(f.name) == (ano, doy_int) or padrao_curto in f.name
-            ]
+            arquivos_sp3 = [f for f in arquivos_sp3 if extrair_ano_doy(f.name) in doys_validos or padrao_curto in f.name]
+            arquivos_clk = [f for f in arquivos_clk if extrair_ano_doy(f.name) in doys_validos or padrao_curto in f.name]
 
-            # Bias/DCB: se o arquivo tem data no nome, exige data exata (igual a nav/sp3/clk).
-            # Se não tem data (arquivo genérico do tipo P1C1_ALL.DCB), mantém sempre.
-            arquivos_bias = [
-                f for f in arquivos_bias
-                if extrair_ano_doy(f.name) == (ano, doy_int)
-                or extrair_ano_doy(f.name) == (None, None)
-            ]
+            # Mantém arquivos genéricos ou específicos do dia
+            arquivos_bias = [f for f in arquivos_bias if extrair_ano_doy(f.name) in doys_validos or extrair_ano_doy(f.name) == (None, None)]
         else:
-            return f"⚠️ Pulei {arquivo_obs.name}: Não consegui identificar a data no nome do arquivo."
+            return f"⚠️ Pulei {arquivo_obs.name}: Não consegui identificar a data."
         # ---------------------------------------
 
         if not arquivos_sp3:
@@ -217,15 +213,26 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
             cmd.append(str(sp3))
         for clk in arquivos_clk:
             cmd.append(str(clk))
-        for bias in arquivos_bias:  # Opcional: corrige DCB P1-C1 quando disponível
-            cmd.append(str(bias))
+        # for bias in arquivos_bias:  # Opcional: corrige DCB P1-C1 quando disponível
+        #    cmd.append(str(bias))
 
-        if arquivos_bias:
-            print(f"   ↳ Bias/DCB aplicado: {[b.name for b in arquivos_bias]}")
-        else:
-            print(f"   ⚠️ Nenhum arquivo de bias/DCB encontrado para {arquivo_obs.name} "
-                  f"(ok se o receptor rastreia P1/P2 nativamente, senão pode inserir viés de código)")
+        #if arquivos_bias:
+        #    print(f"   ↳ Bias/DCB aplicado: {[b.name for b in arquivos_bias]}")
+        #else:
+        #    print(f"   ⚠️ Nenhum arquivo de bias/DCB encontrado para {arquivo_obs.name} "
+        #          f"(ok se o receptor rastreia P1/P2 nativamente, senão pode inserir viés de código)")
 
+        # ATENÇÃO: arquivos .BIA (formato SINEX-BIAS, ex.: COD0MGXFIN..._OSB.BIA)
+        # foram REMOVIDOS da lista abaixo. Testes mostraram que passá-los como
+        # argumento posicional ao rnx2rtkp introduz um erro sistemático de
+        # ~10-17m em TODAS as épocas do GPS (idêntico em código e fase, e
+        # idêntico entre PPP Static e Kinematic), muito provavelmente por
+        # suporte incompleto/incorreto do RTKLIB a esse formato mais novo.
+        # Mantemos aqui só o formato .DCB clássico (ex.: P1C1_ALL.DCB), que é
+        # mais simples e historicamente bem suportado pelo RTKLIB — mas ele
+        # deve ser usado via 'file-dcb=' no .conf, não como argumento
+        # posicional, então NÃO o incluímos em arquivos_bias/cmd aqui.
+#
         # Executa capturando TUDO
         try:
             result = subprocess.run(cmd, capture_output=True, text=True)
