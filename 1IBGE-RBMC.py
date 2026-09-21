@@ -103,8 +103,6 @@ def descobrir_mes_ano_automatico(caminho_origem):
     print("   -> Usando data atual como fallback.")
     return datetime.datetime.now().strftime("%b_%y").upper()
 
-# MAX_ZIP_SIZE foi removida, pois usaremos o RTKLIB diretamente
-
 # Função para imprimir a etapa atual do processamento
 def print_etapa(etapa):
     print(f"\n{'='*40}\n[ETAPA] {etapa}\n{'='*40}")
@@ -163,11 +161,9 @@ def descompactar_zip(origem_path, pasta_destino_d_path, pasta_destino_nav_path):
                     caminho_origem = Path(raiz) / arquivo
                     arq_lower = arquivo.lower()
                 
-                    # ####### LÓGICA DE SEPARAÇÃO #######
-                
                     # 1. RINEX 2 (.24d) ou RINEX 3 (.crx ou .crx.gz)
                     if re.search(r"\.\d{2}d$", arq_lower) or arq_lower.endswith(".crx") or arq_lower.endswith(".crx.gz"):
-                        if caminho_origem.exists(): # Evita tentar mover algo que já foi movido
+                        if caminho_origem.exists(): 
                             shutil.move(caminho_origem, pasta_destino_d_path / arquivo)
                             count_d += 1
                         
@@ -185,7 +181,7 @@ def descompactar_zip(origem_path, pasta_destino_d_path, pasta_destino_nav_path):
         if temp_extraidos.exists(): shutil.rmtree(temp_extraidos, ignore_errors=True)
 
 def _processar_crx(arquivo_d_path, crx2rnx_path):
-    """Converte Hatanaka em RINEX usando RNXCMP (Suporta Rinex 2 e 3)"""
+    """Converte Hatanaka em RINEX usando RNXCMP"""
     try:
         # Se for um .crx.gz (RINEX 3 Compactado), extrai primeiro
         if arquivo_d_path.suffix.lower() == '.gz':
@@ -197,7 +193,6 @@ def _processar_crx(arquivo_d_path, crx2rnx_path):
             os.remove(arquivo_d_path)
             arquivo_d_path = novo_path
 
-        # O CRX2RNX é inteligente o suficiente para saber se a saída será .o ou .rnx
         cmd = f'"{crx2rnx_path}" "{arquivo_d_path}"'
         resultado = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         
@@ -210,7 +205,6 @@ def _processar_crx(arquivo_d_path, crx2rnx_path):
         return f"❌ Erro fatal em {arquivo_d_path.name}: {e}"
 
 def converter_crx2rnx_paralelo(pasta_d_path, crx2rnx_path):
-    # Pega tanto os .d antigos quanto os .crx modernos
     arquivos_d = [
         f for f in pasta_d_path.iterdir() 
         if f.is_file() and (re.search(r"\.\d{2}[dD]$", f.name) or ".crx" in f.name.lower())
@@ -229,17 +223,18 @@ def _processar_gfzrnx(arquivo_o_path, gfzrnx_path, gps_dir, glonass_dir, gps_glo
         glonass_saida = glonass_dir / f"GLONASS_{arquivo}"
         gps_glonass_saida = gps_glonass_dir / f"GPS_GLONASS_{arquivo}"
         
-        # GFZRNX: -satsys = satélite manipular. 'G' = GPS, 'R' = GLONASS
-        # Cria arquivo só de GPS
-        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{gps_saida}" -satsys G', shell=True, check=True)
+        # O PARÂMETRO -vo 2 FOI ADICIONADO AQUI NAS TRÊS LINHAS:
         
-        # Cria arquivo só de GLONASS
-        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{glonass_saida}" -satsys R', shell=True, check=True)
+        # Cria arquivo só de GPS forçando RINEX 2
+        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{gps_saida}" -satsys G -vo 2', shell=True, check=True)
         
-        # Cria arquivo GPS + GLONASS
-        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{gps_glonass_saida}" -satsys GR', shell=True, check=True)
+        # Cria arquivo só de GLONASS forçando RINEX 2
+        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{glonass_saida}" -satsys R -vo 2', shell=True, check=True)
         
-        return f"✅ GFZRNX fatiou: {arquivo}"
+        # Cria arquivo GPS + GLONASS forçando RINEX 2
+        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{gps_glonass_saida}" -satsys GR -vo 2', shell=True, check=True)
+        
+        return f"✅ GFZRNX fatiou e forçou RINEX 2: {arquivo}"
     except Exception as e:
         return f"❌ Erro GFZRNX em {arquivo}: {e}"
 
@@ -252,7 +247,6 @@ def separar_constelacoes_paralelo(pasta_d_path, pasta_sep_path, gfzrnx_path):
     os.makedirs(glonass_dir, exist_ok=True)
     os.makedirs(gps_glonass_dir, exist_ok=True)
 
-    # Coleta arquivos .o (Rinex 2) e .rnx (Rinex 3)
     arquivos_obs = [
         f for f in pasta_d_path.iterdir() 
         if f.is_file() and (re.search(r"\.\d{2}[oO]$", f.name) or f.name.lower().endswith(".rnx"))
@@ -263,18 +257,15 @@ def separar_constelacoes_paralelo(pasta_d_path, pasta_sep_path, gfzrnx_path):
         for futuro in concurrent.futures.as_completed(tarefas):
             print(futuro.result())
 
-# --- FUNÇÃO 'compactar_por_lote' REMOVIDA ---
-
 def baixar_navegacao_brdc(ano, doy, pasta_destino_nav, max_tentativas=5):
     """
     Baixa o arquivo de navegação global Multi-GNSS (BRDC) do servidor IGS/BKG.
-    Exemplo de URL: https://igs.bkg.bund.de/root_ftp/IGS/BRDC/2024/001/BRDC00IGS_R_20240010000_01D_MN.rnx.gz
     """
     pasta_destino_nav = Path(pasta_destino_nav)
     os.makedirs(pasta_destino_nav, exist_ok=True)
     
     ano_str = str(ano)
-    doy_str = str(doy).zfill(3) # Garante 3 dígitos (ex: 001, 045)
+    doy_str = str(doy).zfill(3)
     
     nome_arquivo_gz = f"BRDC00IGS_R_{ano_str}{doy_str}0000_01D_MN.rnx.gz"
     nome_arquivo_rnx = f"BRDC00IGS_R_{ano_str}{doy_str}0000_01D_MN.rnx"
@@ -282,7 +273,6 @@ def baixar_navegacao_brdc(ano, doy, pasta_destino_nav, max_tentativas=5):
     caminho_gz = pasta_destino_nav / nome_arquivo_gz
     caminho_rnx = pasta_destino_nav / nome_arquivo_rnx
     
-    # Se já existir, não baixa de novo
     if caminho_rnx.exists():
         print(f"✅ Navegação BRDC já existe para o dia {doy}: {nome_arquivo_rnx}")
         return caminho_rnx
@@ -293,21 +283,19 @@ def baixar_navegacao_brdc(ano, doy, pasta_destino_nav, max_tentativas=5):
         print(f"🌐 Baixando navegação global BRDC do dia {doy}/{ano}...")
     
         try:
-            # Baixa com timeout de 15 segundos para evitar que o programa trave
             with urllib.request.urlopen(url, timeout=15) as response, open(caminho_gz, 'wb') as out_file:
                 shutil.copyfileobj(response, out_file)
             
-            # Extrai o arquivo
             with gzip.open(caminho_gz, 'rb') as f_in:
                 with open(caminho_rnx, 'wb') as f_out:
                     shutil.copyfileobj(f_in, f_out)
                     
-            os.remove(caminho_gz) # Apaga o .gz
+            os.remove(caminho_gz)
             return caminho_rnx
             
         except urllib.error.URLError as e:
             print(f"   ⚠️ Falha na rede (Tentativa {tentativa}): {e}")
-            if caminho_gz.exists(): os.remove(caminho_gz) # Limpa download corrompido
+            if caminho_gz.exists(): os.remove(caminho_gz)
             
             if tentativa < max_tentativas:
                 print("   ⏳ Aguardando 5 segundos antes de tentar novamente...")
@@ -329,7 +317,6 @@ def resolver_navegacao(pasta_d, pasta_nav):
 
     dias_processados = set()
 
-    # Inspeciona os arquivos na pasta para descobrir os dias (Ano, DOY)
     for arquivo in pasta_d.iterdir():
         if not arquivo.is_file(): continue
         
@@ -353,7 +340,6 @@ def resolver_navegacao(pasta_d, pasta_nav):
         print("⚠️ Nenhum dia válido encontrado para baixar navegação.")
         return
 
-    # Baixa a navegação para cada dia único encontrado
     for ano, doy in sorted(list(dias_processados)):
         baixar_navegacao_brdc(ano, doy, pasta_nav)
 
@@ -363,7 +349,6 @@ def main():
     origem_zip = config.IBGE_ZIP
     mes_ano = descobrir_mes_ano_automatico(origem_zip)
 
-    # Validação dos executáveis
     CAMINHO_CRX2RNX = Path(config.CRX2RNX_PATH)
     CAMINHO_GFZRNX = Path(config.GFZRNX_PATH)
     
@@ -374,14 +359,12 @@ def main():
         print(f"❌ Erro: GFZRNX não encontrado em '{CAMINHO_GFZRNX}'")
         return
 
-    # usa Pathlib para gerenciar pastas
     pasta_final = Path(config.PASTA_BASE) / mes_ano
     os.makedirs(pasta_final, exist_ok=True)
 
     pasta_d   = pasta_final / "1 - Dados tipos .d"
     pasta_nav = pasta_final / "1.1 - Navegacao Broadcast"
     pasta_sep = pasta_final / "2 - Dados separados por satélite (Prontos para RTKLIB)"
-    # pasta_zip FOI REMOVIDA
 
     print_etapa("1/3 - Descompactando e separando arquivos .d")
     descompactar_zip(origem_zip, pasta_d, pasta_nav)
@@ -399,7 +382,6 @@ def main():
     print(f"Processamento concluído! Seus arquivos RINEX estão prontos para o RTKLIB em:")
     print(f"{pasta_sep}")
 
-    # Salva o caminho das pastas para o proximo script
     utils.salvar_estado("pasta_rinex_pronta", pasta_sep)
     utils.salvar_estado("mes_ano", mes_ano)
 

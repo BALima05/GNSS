@@ -76,18 +76,25 @@ def gerar_config_com_navsys(config_file, navsys_valor, pasta_saida, nome_base):
 
 def extrair_ano_doy(nome_arq):
     """
-    Extrai (ano, doy) do nome de um arquivo RINEX/produto IGS, tentando
-    o padrão RINEX 3 (_YYYYDDDhhmm_, usado em obs, nav, sp3 e clk) e,
-    se falhar, o padrão RINEX 2 (nnnDDDa.YYo).
-    Retorna (None, None) se não encontrar.
+    Extrai (ano, doy) do nome de um arquivo RINEX/produto IGS.
+    Suporta: RINEX 3 (_YYYYDDD_), RINEX 2 (.YYo, .YYp, .YYn, .YYg) e arquivos BRDC (brdcDDD0.YYp).
     """
+    # 1. Padrão RINEX 3 (obs, nav, sp3, clk)
     match3 = re.search(r"_(\d{4})(\d{3})\d{4}_", nome_arq)
     if match3:
         return int(match3.group(1)), int(match3.group(2))
 
-    match2 = re.search(r"^[a-zA-Z0-9]{4}(\d{3})[a-zA-Z0-9]\.(\d{2})[oO]$", nome_arq)
+    # 2. Padrão RINEX 2 genérico (obs: .YYo, nav: .YYp, .YYn, .YYg)
+    match2 = re.search(r"(\d{3})[a-zA-Z0-9]\.(\d{2})[oOpPnNgG]$", nome_arq)
     if match2:
         return 2000 + int(match2.group(2)), int(match2.group(1))
+
+    # 3. Padrão Broadcast global (ex: brdc0010.25p ou BRDC00IGS_R_2025001...)
+    match_brdc = re.search(r"brdc(\d{3})\d\.\d{2}", nome_arq, re.IGNORECASE)
+    if match_brdc:
+        ano_m = re.search(r"\.(\d{2})", nome_arq)
+        if ano_m:
+            return 2000 + int(ano_m.group(1)), int(match_brdc.group(1))
 
     return None, None
 
@@ -112,19 +119,20 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
         # Nome do arquivo de saída
         arquivo_pos = pasta_saida / arquivo_obs.with_suffix('.pos').name
         
-        # Obtenção dos arquivos nav e produtos
-        nav_files_brutos = list(pasta_nav.glob("*.[0-9][0-9]n")) + \
-                           list(pasta_nav.glob("*.[0-9][0-9]p")) + \
-                           list(pasta_nav.glob("*.[0-9][0-9]g")) + \
+        # Obtenção dos arquivos nav e produtos (agora aceitando padrões com dois dígitos do ano)
+        nav_files_brutos = list(pasta_nav.glob("*.[0-9][0-9][nNpPgG]")) + \
                            list(pasta_nav.glob("*.nav")) + \
-                           list(pasta_nav.glob("*MN.rnx"))
+                           list(pasta_nav.glob("*.NAV")) + \
+                           list(pasta_nav.glob("*MN.rnx")) + \
+                           list(pasta_nav.glob("brdc*"))
                            
         nav_files = []
         for nav in nav_files_brutos:
             # RTKLIB ignora navegação terminada em .rnx. Vamos forçar para .nav
             if nav.suffix.lower() == '.rnx':
                 novo_nav = nav.with_suffix('.nav')
-                nav.rename(novo_nav) # Renomeia fisicamente no HD
+                if not novo_nav.exists():
+                    nav.rename(novo_nav) # Renomeia fisicamente no HD
                 nav_files.append(novo_nav)
             else:
                 nav_files.append(nav)
@@ -132,13 +140,7 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
         arquivos_sp3 = list(pasta_produtos.glob("*.[sS][pP]3")) + list(pasta_produtos.glob("*.eph"))
         arquivos_clk = list(pasta_produtos.glob("*.[cC][lL][kK]"))
 
-        # --- LÓGICA DE EXTRAÇÃO DE DATA (comparação EXATA, não substring) ---
-        # IMPORTANTE: usar "doy_str in nome_arquivo" é perigoso, porque o DOY
-        # pode coincidir por acaso com parte do ANO no nome do arquivo
-        # (ex.: dia 024 é substring de "2024"), fazendo o filtro pegar
-        # arquivos de navegação de dias errados. Por isso,
-        # extraímos (ano, doy) de cada arquivo com regex e comparamos
-        # igualdade exata com o (ano, doy) do arquivo de observação.
+        # Extração e comparação da data do arquivo de observação
         ano, doy_int = extrair_ano_doy(arquivo_obs.name)
 
         if ano and doy_int:
@@ -150,33 +152,27 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
                 if extrair_ano_doy(f.name) == (ano, doy_int)
             ]
 
-            # Filtra SP3 e CLK: aceita tanto o nome-longo (ano+doy exatos)
-            # quanto o padrão curto de nome de produto IGS por semana GPS (igsWWWD)
+            # Filtra SP3 e CLK: aceita nome-longo IGS v3 e padrão curto (igsWWWD)
             padrao_curto = f"igs{wk}{dw}"
             arquivos_sp3 = [
                 f for f in arquivos_sp3
-                if extrair_ano_doy(f.name) == (ano, doy_int) or padrao_curto in f.name
+                if extrair_ano_doy(f.name) == (ano, doy_int) or padrao_curto in f.name.lower()
             ]
             arquivos_clk = [
                 f for f in arquivos_clk
-                if extrair_ano_doy(f.name) == (ano, doy_int) or padrao_curto in f.name
+                if extrair_ano_doy(f.name) == (ano, doy_int) or padrao_curto in f.name.lower()
             ]
         else:
             return f"⚠️ Pulei {arquivo_obs.name}: Não consegui identificar a data no nome do arquivo."
-        # ---------------------------------------
 
         if not arquivos_sp3:
-            return f"⚠️ Pulei {arquivo_obs.name}: Faltam arquivos .sp3 (Orbitas)."
+            return f"⚠️ Pulei {arquivo_obs.name}: Faltam arquivos .sp3 (Órbitas)."
         if not arquivos_clk:
             return f"⚠️ Pulei {arquivo_obs.name}: Faltam arquivos .clk (Relógios)."
         if not nav_files:
             return f"⚠️ Pulei {arquivo_obs.name}: Faltam arquivos de navegação (.n, .p, .g, .nav)."
             
         # --- DETECÇÃO AUTOMÁTICA DE NAVSYS ---
-        # lê o cabeçalho do arquivo de observação pra saber quais
-        # sistemas (GPS/GLONASS/...) existem nele, gerando um .conf
-        # temporário com o pos1-navsys correto. Isso evita usar
-        # navsys=GPS+GLONASS num arquivo que só tem GLONASS ou vice-versa
         sistemas_detectados = detectar_sistemas(arquivo_obs)
         navsys_valor = navsys_bitmask(sistemas_detectados)
         config_efetivo = gerar_config_com_navsys(
@@ -184,19 +180,17 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
         )
         print(f"🛰️  {arquivo_obs.name}: sistemas={sorted(sistemas_detectados) or '??'} -> navsys={navsys_valor}")
 
-        # Monta o comando
+        # Monta o comando garantindo ordem correta para rnx2rtkp: OBS -> NAV -> SP3 -> CLK
         cmd = [
             str(rnx2rtkp_path),
             '-k', str(config_efetivo),
-            '-x', '3',  # Nível 3 de Trace (Gera arquivo .trace detalhado)
-            '-y', '3',  # Nível 3 de Status (Gera arquivo .stat)
+            '-x', '3',
+            '-y', '3',
             '-o', str(arquivo_pos),
             str(arquivo_obs)
         ]
         
-        # Adiciona produtos e navegação ao comando
-
-        for nav in nav_files:      # OBRIGATÓRIO PASSAR NAV PRIMEIRO
+        for nav in nav_files:
             cmd.append(str(nav))
         for sp3 in arquivos_sp3:
             cmd.append(str(sp3))
@@ -213,12 +207,18 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
                 f"stdout: {result.stdout}"
             )
 
-        # --- Verificar se o arquivo EXISTE e tem CONTEÚDO ---
-        if arquivo_pos.exists() and arquivo_pos.stat().st_size > 0:
+        # Remove arquivo de config temporário após o processamento do item
+        if config_efetivo.exists():
+            try:
+                config_efetivo.unlink()
+            except Exception:
+                pass
+
+        # --- Verificar se o arquivo EXISTE e se tem Soluções Válidas ---
+        if arquivo_pos.exists() and arquivo_pos.stat().st_size > 2000:
             return f"✅ PPP Sucesso: {arquivo_pos.name} (Tamanho: {arquivo_pos.stat().st_size/1024:.1f} KB)"
         else:
-            # Se o arquivo não foi criado, mostra o erro que o RTKLIB cuspiu
-            return (f"❌ Falha {arquivo_obs.name} (Arquivo vazio ou não criado).\n"
+            return (f"❌ Falha {arquivo_obs.name} (Arquivo sem soluções ou apenas cabeçalho ~1.2 KB).\n"
                     f"   Log RTKLIB: {result.stderr}\n"
                     f"   Output: {result.stdout}")
 
@@ -226,36 +226,27 @@ def processar_ppp_rtklib(arquivo_obs, pasta_produtos, pasta_nav, config_file, rn
         return f"💥 Erro de execução processando {arquivo_obs.name}: {e}"
 
 def main():
-    print("🌍 AUTOMÇÃO DE PPP COM RTKLIB (Python Wrapper)")
+    print("🌍 AUTOMAÇÃO DE PPP COM RTKLIB (Python Wrapper)")
     
     # --- CONFIGURAÇÕES ---
-    # Caminho para o executável rnx2rtkp.exe
     path_rnx2rtkp = Path(config.RNX2RTKP_PATH)
     if not path_rnx2rtkp.is_file():
         print(f"❌ Executável não encontrado: {path_rnx2rtkp}")
         return
     
-    # Pasta onde estão os arquivos RINEX .o (gerados no script anterior)
     path_rinex_obs = utils.carregar_estado("pasta_rinex_pronta")
-    
-    # Pasta onde salvou os arquivos .sp3 e .clk baixados do IGS
     path_produtos = utils.carregar_estado("pasta_produtos")
-
-    # Pasta onde estão os dados de navegação
     path_nav = None
     
-    # Arquivo de configuração .conf
     path_config = Path(config.CONFIG_FILE)
     if not path_config.is_file():
         print(f"❌ Arquivo de configuração não encontrado: {path_config}")
         return
     
-    # Pasta para salvar os resultados
     path_saida = os.path.join(os.path.dirname(path_rinex_obs), "RESULTADOS_PPP")
     os.makedirs(path_saida, exist_ok=True)
 
     # --- VERIFICAÇÕES ---
-
     if path_rinex_obs:
         path_rinex_obs = Path(path_rinex_obs)
         print(f"📁 Base recuperada: {path_rinex_obs}")
@@ -264,9 +255,6 @@ def main():
         mes_ano = utils.descobrir_mes_ano_automatico(config.IBGE_ZIP)
         path_rinex_obs = Path(config.PASTA_BASE) / mes_ano / "2 - Dados separados por satélite (Prontos para RTKLIB)"
     
-    # -- Correção de segurança --
-    # Se por acaso o script 1 salvou o caminho de uma subpasta (ex.: .../GPS),
-    # subimos 1 nível para garantir que estamos na pasta mãe
     if path_rinex_obs.name in ["GPS", "GLONASS", "GPS_GLONASS"]:
         path_rinex_obs = path_rinex_obs.parent
         print(f"⚠️ Ajuste de caminho: Subpasta detectada. Usando pasta mãe: {path_rinex_obs}")
@@ -275,7 +263,6 @@ def main():
         print(f"❌ A pasta {path_rinex_obs} não foi encontrada.")
         return
     
-    # Recuperando a pasta nav diretamente
     path_nav = path_rinex_obs.parent / "1.1 - Navegacao Broadcast"
     if not path_nav.exists():
         print(f"⚠️ Pasta de navegação não encontrada em {path_nav}.")
@@ -295,11 +282,10 @@ def main():
 
     print(f"Iniciando PPP para {len(arquivos_o)} arquivos...")
     
-    # Processamento sequencial: um arquivo por vez
     for obs in arquivos_o:
         resultado = processar_ppp_rtklib(
-           obs,
-           path_produtos,
+            obs,
+            path_produtos,
             path_nav,
             path_config,
             path_rnx2rtkp,

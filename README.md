@@ -75,7 +75,7 @@ PASTA_BASE = r"Caminho para uma pasta base onde o código vai depositar os dados
 CONFIG_FILE = r"caminho para o arquivo ppp-static.conf do rtklib /GNSS/ppp-static.conf"
 ```
 
-Também é necessário instalar o RTKLIB nativamente. Este projeto utiliza o RTKLIB-demo5 que pode ser instalado seguindo as instruções em seu [repositório oficial do Github](https://github.com/rinex20/RTKLIB-demo5).
+Também é necessário instalar o RTKLIB nativamente. Este projeto utiliza o RTKLIB 2.5.1 que pode ser instalado seguindo as instruções em seu [repositório oficial do Github](https://github.com/rtklibexplorer/RTKLIB/releases/tag/v2.5.1).
 
 Após a criação adequada do arquivo de configuração e verificação das dependências, é necessário apenas rodar o ```run_all.py``` pelo seguinte comando:
 
