@@ -20,7 +20,7 @@ PATH_IGS = "/pub/igs/products"
 PATH_7ZIP = None
 caminhos_comuns = [
     r"C:\Program Files\7-Zip\7z.exe",
-    r"C:\Program Files (x86)\7-Zip\7z.exe"
+    r"C:\Program Files (x86)\7-Zip\7z.exe",
     "/usr/bin/7z"
 ]
 for p in caminhos_comuns:
