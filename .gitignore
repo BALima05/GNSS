@@ -1,1 +1,5 @@
-__pycache__
+sessao_atual.json
+config.py
+__pycache__/
+*.pyc
+*.trace
