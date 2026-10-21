@@ -108,7 +108,7 @@ Obs².: O processamento de 1 mês inteiro de dados pode ocupar de 7 a 10 gigabyt
 
 :construction: Em progresso :construction:
 
-### 4-LIMPEZA.py
+### :broom: 4-LIMPEZA.py
 
 Após o término do processamento dos scripts 1 a 4 anteriores, é interessante remover os arquivos intermediários de processamento necessários pelo RTKLIB, uma vez que estes não serão mais necessários. 
 
@@ -125,7 +125,7 @@ O que é removido pelo programa:
 
 Dessa forma, são mantidos os arquivos ```.pos``` de posicionamento do dia, gráficos da série mensal e tabelas estatísticas geradas. 
 
-O arquivo também conta com flags com diversas funções para utilização, apresentando os seguintes comportamentos:
+O arquivo também conta com :triangular_flag_on_post: **flags** :triangular_flag_on_post: com diversas funções para utilização, apresentando os seguintes comportamentos:
 
 - ```--pasta /caminho_da_pasta_mensal``` limpa a pasta do mês especificado no caminho;
 - ```--simular``` apenas lista o que seria removido e o espaço liberado, sem remover;
