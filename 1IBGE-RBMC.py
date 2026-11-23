@@ -226,13 +226,13 @@ def _processar_gfzrnx(arquivo_o_path, gfzrnx_path, gps_dir, glonass_dir, gps_glo
         # O PARÂMETRO -vo 2 FOI ADICIONADO AQUI NAS TRÊS LINHAS:
         
         # Cria arquivo só de GPS forçando RINEX 2
-        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{gps_saida}" -satsys G -vo 2', shell=True, check=True)
+        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{gps_saida}" -satsys G', shell=True, check=True)
         
         # Cria arquivo só de GLONASS forçando RINEX 2
-        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{glonass_saida}" -satsys R -vo 2', shell=True, check=True)
+        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{glonass_saida}" -satsys R', shell=True, check=True)
         
         # Cria arquivo GPS + GLONASS forçando RINEX 2
-        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{gps_glonass_saida}" -satsys GR -vo 2', shell=True, check=True)
+        subprocess.run(f'"{gfzrnx_path}" -finp "{arquivo_o_path}" -fout "{gps_glonass_saida}" -satsys GR', shell=True, check=True)
         
         return f"✅ GFZRNX fatiou e forçou RINEX 2: {arquivo}"
     except Exception as e:
